@@ -1,6 +1,6 @@
-# 🦀 Gravity Claw
+# 👽 Gravity Alien 
 
-A lean, secure, fully-understood personal AI agent. Inspired by [OpenClaw](https://openclaw.ai), built from scratch.
+A lean, secure, fully-understood personal AI agent built from scratch.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Message [@userinfobot](https://t.me/userinfobot) on Telegram — it will reply w
 
 | Level | Feature | Status |
 |-------|---------|--------|
-| 1 | Foundation (Telegram + Claude + Tool Loop) | ✅ |
+| 1 | Foundation (Telegram + AI + Tool Loop) | ✅ |
 | 2 | Memory (SQLite persistence) | ⬜ |
 | 3 | Voice (Whisper + ElevenLabs) | ⬜ |
 | 4 | Tools (Shell, Browser, MCP) | ⬜ |
