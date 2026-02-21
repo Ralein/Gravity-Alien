@@ -30,9 +30,9 @@ export function createBot() {
     });
 
     // ── /start command ────────────────────────────────────────────────
-    bot.command("start", async (ctx) => {
+    bot.command("start", async (ctx) => {   
         await ctx.reply(
-            "🦀 *Gravity Claw online.*\n\n" +
+            " *👾 Gravity Alien online.*\n\n" +
             "I'm your personal AI agent. Send me any message and I'll respond via Claude.\n\n" +
             "Built-in tools: `get_current_time`, `echo`\n\n" +
             "_Level 1 — Foundation_",

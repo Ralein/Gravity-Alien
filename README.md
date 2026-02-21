@@ -1,4 +1,4 @@
-# 👽 Gravity Alien 
+# 👾 Gravity Alien 
 
 A lean, secure, fully-understood personal AI agent built from scratch.
 

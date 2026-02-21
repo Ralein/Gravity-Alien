@@ -4,14 +4,17 @@ import type { ToolDefinition } from "../types/index.js";
 
 const getCurrentTime: ToolDefinition = {
     spec: {
-        name: "get_current_time",
-        description:
-            "Returns the current date, time, and timezone. Use when the user asks what time it is, what today's date is, or anything time-related.",
-        input_schema: {
-            type: "object" as const,
-            properties: {},
-            required: [],
-        },
+        type: "function",
+        function: {
+            name: "get_current_time",
+            description:
+                "Returns the current date, time, and timezone. Use when the user asks what time it is, what today's date is, or anything time-related.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: [],
+            },
+        }
     },
     handler: async () => {
         const now = new Date();
@@ -26,19 +29,22 @@ const getCurrentTime: ToolDefinition = {
 
 const echo: ToolDefinition = {
     spec: {
-        name: "echo",
-        description:
-            "Echoes back the provided message. Useful for testing that the tool loop is working.",
-        input_schema: {
-            type: "object" as const,
-            properties: {
-                message: {
-                    type: "string",
-                    description: "The message to echo back",
+        type: "function",
+        function: {
+            name: "echo",
+            description:
+                "Echoes back the provided message. Useful for testing that the tool loop is working.",
+            parameters: {
+                type: "object",
+                properties: {
+                    message: {
+                        type: "string",
+                        description: "The message to echo back",
+                    },
                 },
-            },
-            required: ["message"],
-        },
+                required: ["message"],
+            }
+        }
     },
     handler: async (input) => {
         return `Echo: ${input["message"] ?? "(empty)"}`;
@@ -51,14 +57,16 @@ const echo: ToolDefinition = {
 const toolRegistry = new Map<string, ToolDefinition>();
 
 function register(tool: ToolDefinition): void {
-    toolRegistry.set(tool.spec.name, tool);
+    if (tool.spec.type === "function") {
+        toolRegistry.set(tool.spec.function.name, tool);
+    }
 }
 
 // Register built-in tools
 register(getCurrentTime);
 register(echo);
 
-/** Get all tool specs for the Anthropic API */
+/** Get all tool specs for the Groq API via OpenAI SDK */
 export function getToolSpecs() {
     return Array.from(toolRegistry.values()).map((t) => t.spec);
 }

@@ -4,14 +4,14 @@ import { createBot } from "./bot/bot.js";
 // ── Entry Point ─────────────────────────────────────────────────────────
 
 async function main() {
-    console.log("\n🦀 Gravity Claw starting up...\n");
+    console.log("\n👾 starting up...\n");
 
     const bot = createBot();
 
     // Graceful shutdown
     const shutdown = async (signal: string) => {
         console.log(`\n🛑 ${signal} received — shutting down gracefully...`);
-        bot.stop();
+        await bot.stop();
         process.exit(0);
     };
 

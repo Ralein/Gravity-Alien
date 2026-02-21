@@ -1,16 +1,16 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { config } from "../config.js";
 import type { AgentResult, MessageParam } from "../types/index.js";
 import { executeTool, getToolSpecs } from "./tools.js";
 
-// ── Anthropic client (singleton) ────────────────────────────────────────
+// ── OpenAI client (singleton) configured for Groq ───────────────────────
 
-const client = new Anthropic({
-    apiKey: config.openRouterApiKey,
-    baseURL: "https://openrouter.ai/api/v1",
+const client = new OpenAI({
+    apiKey: config.groqApiKey,
+    baseURL: "https://api.groq.com/openai/v1",
 });
 
-const SYSTEM_PROMPT = `You are Gravity Claw, a personal AI assistant. You are helpful, concise, and security-conscious.
+const SYSTEM_PROMPT = `You are 👾 Gravity Alien, a personal AI assistant. You are helpful, concise, and security-conscious.
 
 You have access to tools. Use them when they would help answer the user's question.
 When you use a tool, you'll receive the result and can use it to formulate your response.
@@ -24,8 +24,8 @@ Key behaviors:
 // ── Agentic Loop ────────────────────────────────────────────────────────
 
 /**
- * Runs the agentic loop: sends user message to Claude, handles tool calls,
- * feeds results back, and repeats until Claude returns a text response
+ * Runs the agentic loop: sends user message to Groq, handles tool calls,
+ * feeds results back, and repeats until Groq returns a text response
  * or the safety limit is hit.
  */
 export async function runAgentLoop(
@@ -42,80 +42,70 @@ export async function runAgentLoop(
     let totalToolCalls = 0;
     let iterations = 0;
 
+    const apiMessages: MessageParam[] = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...messages
+    ];
+
     while (iterations < config.maxIterations) {
         iterations++;
 
         let response;
         try {
-            // Call Claude via OpenRouter
-            response = await client.messages.create({
+            // Call Groq via OpenAI client
+            response = await client.chat.completions.create({
                 model: config.model,
-                max_tokens: 4096,
-                system: SYSTEM_PROMPT,
-                tools,
-                messages,
+                messages: apiMessages,
+                tools: tools.length > 0 ? tools : undefined,
+                temperature: 0.2, // optional, makes it slightly more deterministic
             });
         } catch (err: unknown) {
             // Log the full error for debugging
             console.error("   ❌ API call failed:", err);
-            if (err && typeof err === "object" && "status" in err) {
-                console.error("   HTTP status:", (err as { status: number }).status);
-            }
-            if (err && typeof err === "object" && "message" in err) {
-                console.error("   Message:", (err as { message: string }).message);
-            }
             throw err;
         }
 
-        console.log(`   📡 Response stop_reason: ${response.stop_reason}`);
+        const choice = response.choices[0];
+        const message = choice.message;
+
+        console.log(`   📡 Response finish_reason: ${choice.finish_reason}`);
 
         // Check stop reason
-        if (response.stop_reason === "end_turn") {
-            // Claude finished with a text response — extract it
-            const textBlock = response.content.find((b) => b.type === "text");
-            const text = textBlock && "text" in textBlock ? textBlock.text : "(no response)";
-            return { response: text, toolCalls: totalToolCalls, iterations };
+        if (choice.finish_reason === "stop" || !choice.finish_reason) {
+            // Groq finished with a text response
+            return { response: message.content ?? "(no response)", toolCalls: totalToolCalls, iterations };
         }
 
-        if (response.stop_reason === "tool_use") {
-            // Claude wants to use tools — execute them all
-            const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+        if (choice.finish_reason === "tool_calls") {
+            // Groq wants to use tools
+            apiMessages.push(message);
 
-            // Add assistant's response (with tool_use blocks) to conversation
-            messages.push({ role: "assistant", content: response.content });
-
-            // Execute each tool and collect results
-            const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
-            for (const block of toolUseBlocks) {
-                if (block.type === "tool_use") {
+            for (const toolCall of message.tool_calls || []) {
+                if (toolCall.type === "function") {
                     totalToolCalls++;
-                    console.log(`   🔧 Tool call: ${block.name}`);
+                    console.log(`   🔧 Tool call: ${toolCall.function.name}`);
 
-                    const result = await executeTool(
-                        block.name,
-                        block.input as Record<string, unknown>,
-                    );
+                    let args: Record<string, unknown> = {};
+                    try {
+                        args = JSON.parse(toolCall.function.arguments);
+                    } catch (e) {
+                        console.error(`   ❌ Failed to parse JSON arguments: ${toolCall.function.arguments}`);
+                    }
 
-                    toolResults.push({
-                        type: "tool_result",
-                        tool_use_id: block.id,
-                        content: result,
+                    const resultStr = await executeTool(toolCall.function.name, args);
+
+                    apiMessages.push({
+                        role: "tool",
+                        tool_call_id: toolCall.id,
+                        content: resultStr,
                     });
                 }
             }
-
-            // Feed tool results back to Claude
-            messages.push({ role: "user", content: toolResults });
             continue;
         }
 
         // Any other stop reason — still return any text content we got
-        const fallbackText = response.content.find((b) => b.type === "text");
-        const fallback =
-            fallbackText && "text" in fallbackText
-                ? fallbackText.text
-                : "(unexpected stop reason)";
-        return { response: fallback, toolCalls: totalToolCalls, iterations };
+        return { response: message.content ?? "(unexpected stop reason)", toolCalls: totalToolCalls, iterations };
     }
 
     // Safety limit hit
@@ -125,4 +115,3 @@ export async function runAgentLoop(
         iterations,
     };
 }
-

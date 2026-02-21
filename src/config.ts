@@ -3,8 +3,8 @@ import type { AppConfig } from "./types/index.js";
 
 // ── Validate & export typed config ──────────────────────────────────────
 
-function requireEnv(name: string): string {
-    const value = process.env[name];
+function requireEnv(name: string, fallback?: string): string {
+    const value = process.env[name] ?? fallback;
     if (!value) {
         console.error(`❌ Missing required environment variable: ${name}`);
         console.error(`   Copy .env.example → .env and fill in your values.`);
@@ -30,9 +30,9 @@ function parseUserIds(raw: string): number[] {
 
 export const config: AppConfig = {
     telegramToken: requireEnv("TELEGRAM_BOT_TOKEN"),
-    openRouterApiKey: requireEnv("OPENROUTER_API_KEY"),
+    groqApiKey: requireEnv("GROQ_API_KEY"),
     allowedUserIds: parseUserIds(requireEnv("ALLOWED_USER_IDS")),
-    model: process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-20250514",
+    model: process.env["GROQ_MODEL"] ?? "llama-3.3-70b-versatile",
     maxIterations: Number(process.env["MAX_AGENT_ITERATIONS"] ?? "10"),
 };
 
@@ -40,4 +40,4 @@ export const config: AppConfig = {
 console.log(`⚙️  Config loaded:`);
 console.log(`   Model: ${config.model}`);
 console.log(`   Max iterations: ${config.maxIterations}`);
-console.log(`   Allowed users: ${config.allowedUserIds.join(", ")}`);
+console.log(`   Allowed users: ${config.allowedUserIds.join(", ")}\n`);

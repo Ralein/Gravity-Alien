@@ -29,4 +29,4 @@ export interface AgentResult {
 }
 
 // Re-export useful OpenAI types for convenience
-export type { ChatCompletionMessageParam, ChatCompletionTool };
+export type { ChatCompletionMessageParam as MessageParam, ChatCompletionTool };
