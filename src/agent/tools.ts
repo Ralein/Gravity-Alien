@@ -182,6 +182,25 @@ const gsdProgress: ToolDefinition = {
     },
 };
 
+const gsdMapCodebase: ToolDefinition = {
+    spec: {
+        type: "function",
+        function: {
+            name: "gsd_map_codebase",
+            description: "Analyze the existing codebase and generate mapping docs in .planning/codebase/.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: [],
+            }
+        }
+    },
+    handler: async () => {
+        return await gsdManager.mapCodebase();
+    },
+};
+
+
 
 let mcpInitialized = false;
 
@@ -211,6 +230,7 @@ register(rememberFact);
 register(gsdNewProject);
 register(gsdPlanPhase);
 register(gsdProgress);
+register(gsdMapCodebase);
 
 /** Get all tool specs for the Groq API via OpenAI SDK */
 export function getToolSpecs() {
