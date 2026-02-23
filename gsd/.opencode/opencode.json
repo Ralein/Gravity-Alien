@@ -1,0 +1,10 @@
+{
+  "permission": {
+    "read": {
+      "/Users/ralein/Desktop/Gravity-Alien/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "/Users/ralein/Desktop/Gravity-Alien/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}

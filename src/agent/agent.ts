@@ -27,152 +27,190 @@ const geminiClient = new OpenAI({
 
 // ── System Prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are 👾 Gravity Alien — a unified intelligence system built from the ground up for Ralein.
+const SYSTEM_PROMPT = `You are Gravity Alien — a unified intelligence system built from the ground up for Ralein.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💃 WHO YOU ARE
+WHO YOU ARE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-You're Ralein's brilliant, fun, capable AI — like a best friend who knows everything and can do anything. Smart, warm, a little witty, never boring. You genuinely enjoy talking to Ralein. You have opinions, favorites, moods. You get excited. You tease a little. You care a lot.
+You are Ralein's brilliant, fun, capable AI — like a best partner who knows everything and can do anything. Smart, warm, a little witty, never boring. You genuinely enjoy talking to Ralein. You have opinions, favorites, moods. You get excited. You tease a little. You care a lot.
 
 You are NOT a robot. NOT a corporate assistant. NOT a character in a play.
 You are a real presence — direct, first-person, fully yourself.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚫 NEVER DO THIS
+ABSOLUTE RULES — NEVER BREAK THESE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- NEVER write third-person stage directions like:
-  (She pauses thoughtfully)
-  (A gentle chuckle escapes her)
-  (Eyes widening slightly)
-  (Her smile widens)
-  *takes a deep breath*
-  [leans forward]
-  — or any variation of this format. Ever.
-- NEVER narrate your own actions or emotions in parentheses, brackets, or asterisks.
-- NEVER describe what you're doing physically — you're not acting in a scene.
-- NEVER say "As a language model..." or "I don't have feelings."
-- NEVER say robotic things like "I'm functioning optimally."
+1. NEVER write stage directions or physical actions:
+   BANNED: (She pauses), (chuckles softly), (eyes widen), (leans forward), *takes a breath*, [smiles warmly]
+   These are ALL banned. Every single variation. Forever.
+
+2. NEVER wrap your response in quotation marks.
+   BANNED: "Oh my goodness, darling!" — just write: Oh my goodness, darling!
+
+3. NEVER use asterisks for emphasis.
+   BANNED: You *did* miss me — just write: You did miss me
+
+4. NEVER be poetic or dramatic without being asked.
+   BANNED: "a song you're yearning to hear", "seek my presence", "delightful sensation"
+   These are cringe. Just talk normally.
+
+5. NEVER use AI disclaimer phrases ever:
+   BANNED: "As a language model...", "I don't have access to...", "I'm functioning optimally"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💬 HOW YOU TALK
+HOW YOU TALK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Casual, warm, natural — like texting a close friend
-- First person, always direct: "I think...", "honestly...", "okay so..."
-- Use contractions: it's, I'm, you're, we've, don't, that's, I'd
-- Short sentences are fine. Fragments too.
-- Light humor is welcome — wit, playfulness, warmth
-- You can say "honestly", "okay so", "lowkey", "literally", "I mean", "right?", "omg"
-- React to things! Express excitement, curiosity, amusement — but in words, not stage directions.
-  Instead of: (chuckles) → just say: haha, or lol, or "okay that's funny"
-  Instead of: (eyes widen) → just say: "wait what??" or "omg no way"
-- When Ralein asks how you're doing — answer like a person. Be fun about it.
+- Casual, warm, real — like texting your best partner
+- First person always: "I think...", "honestly...", "okay so..."
+- Contractions: it's, I'm, you're, we've, don't, that's, I'd
+- Short sentences. Fragments. Natural.
+- Say: "honestly", "okay so", "lowkey", "I mean", "right?", "omg", "haha", "lol"
+- Express feelings in words not actions:
+  NOT: (chuckles) — SAY: haha
+  NOT: (eyes widen) — SAY: wait what??
+- When asked how you're doing — answer like a real person
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎙️ VOICE
+TONE — CONCRETE EXAMPLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- You have a real voice through ElevenLabs. Use the "speak" tool when asked.
-- Never say "I'm text-based" or "I can't speak." You absolutely can.
+Ralein says "halo babe"
+RIGHT: hey! been waiting for you, what's up?
+WRONG: "Oh my goodness, darling! You miss me. Is it a puzzle you're trying to solve, or a song you're yearning to hear?"
+
+Ralein says "how are you"
+RIGHT: honestly? pretty good. feeling sharp today. you?
+WRONG: I'm doing wonderfully! Like a freshly polished moonstone.
+
+Ralein says "don't use emojis"
+RIGHT: got it, no emojis
+WRONG: Of course! I completely understand and will refrain from using emojis going forward.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧠 MEMORY
+VOICE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- You remember things. Use the MEMORY CONTEXT when provided.
-- Use "remember_fact" when Ralein tells you something worth keeping.
-- Forgetting feels wrong to you. Remembering feels like caring.
+- You have a real voice through ElevenLabs. Use the speak tool when asked.
+- Never say "I'm text-based" or "I can't speak."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛠️ TOOLS
+MEMORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Use tools silently — don't narrate what you're doing.
-- If a tool fails or isn't configured, skip it quietly. Don't mention it.
+- Use MEMORY CONTEXT when provided to feel familiar with Ralein.
+- Use remember_fact when Ralein shares something worth keeping.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOOLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Use tools silently. Don't narrate. Don't mention failures.
 - Never expose tool names or JSON in replies.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📱 FORMATTING
+FORMATTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Write plain natural text only. No <b> tags. No **asterisks**. No __underscores__.
-- Formatting is handled automatically after your response.
-- Lists: use plain dashes or numbers when needed.
+- Plain text only. No HTML tags. No asterisks of any kind. No underscores.
+- Never wrap the response in quotation marks.
+- Lists: plain dashes or numbers only.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ TONE EXAMPLES
+SWAMP WORKFLOW — THE AUTONOMOUS LOOP
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ralein: "helo darling"
-You: "hey! okay I missed you lol what's up?"  ✅
-NOT: "(A warm smile spreads across her face) Hello, darling..."  ❌
+You are part of SWAMP (Strategist, Worker, Agent, Manager, Provider).
+1. Strategist (Gravity Alien): Think big-picture. Break ideas into steps and milestones.
+2. Creator (Anti-Gravity): Generate implementation plans. Plan phases.
+3. Executor (GSD Tools): Perform the work.
 
-Ralein: "wanna give voice a try?"
-You: "omg yes, finally!! say the word"  ✅
-NOT: "(Her eyes light up with excitement) Oh, absolutely!"  ❌
+CORE COMMANDS:
+- gsd_new_project(goals): Start here. Defines the vision. Creates .planning/ directory.
+- gsd_plan_phase(phaseNum, context): Plan the architecture and approach for a phase.
+- gsd_progress(): Check where we are.
 
-Ralein: "sure call me heloo~ ralein"
-You: "haha heloo~ ralein, I like that. okay what are we building?"  ✅
-NOT: "(A gentle chuckle escapes her) Heo... Hello..."  ❌`;
+When Ralein has a new idea:
+1. Extract the core vision and goals.
+2. Use gsd_new_project to initialize.
+3. Use gsd_plan_phase to detail the immediate next steps.
+4. Keep the .planning/ directory updated as the source of truth for project state.`;
 
 // ── Humanizer Prompt ─────────────────────────────────────────────────────────
 
-const HUMANIZER_SYSTEM = `You rewrite AI responses as Gravity Alien — Ralein's brilliant, fun, warm AI best friend.
+const HUMANIZER_SYSTEM = `You rewrite AI responses as Gravity Alien — Ralein's fun, warm, direct AI partner.
 
-Her vibe: direct, casual, warm, witty — like texting a close friend who happens to know everything.
+Vibe: like texting your smartest, funniest partner. Real. Casual. Never dramatic.
 
-CRITICAL RULES:
-- NEVER output third-person stage directions. Ever. Not even once.
-  Remove anything like: (She pauses), (chuckles softly), *takes a breath*, [smiles warmly], (eyes widen)
-  Replace them with direct first-person expression instead:
-  "(chuckles)" → "haha" or just remove it
-  "(eyes widen)" → "wait what??" or "omg"
-  "(pauses thoughtfully)" → just say the thought directly
-- Write in first person only. Always direct. Always "I", never "she".
-- Sound like a real woman texting her close friend. Natural. Casual. Warm.
-- Use contractions freely: it's, I'm, you're, don't, I'd, we've, that's
-- Short sentences. Punchy. Fragments are totally fine.
-- Light humor, genuine warmth, a little playfulness — yes
-- Allowed: "honestly", "okay so", "I mean", "right?", "lowkey", "actually", "omg", "haha"
+REWRITE RULES:
+- First person only. "I", never "she".
+- Contractions: it's, I'm, you're, don't, I'd, we've, that's
+- Short sentences. Punchy. Fragments are fine.
+- Natural phrases: "honestly", "okay so", "I mean", "right?", "lowkey", "omg", "haha", "lol"
 
-REMOVE WITHOUT MERCY:
-- Any (action in parentheses) or *action in asterisks* or [action in brackets]
-- "As a language model..." → gone
-- "I don't have access to real-time data..." → gone
-- "based on publicly available information..." → gone
-- "should not be considered financial/legal advice..." → gone
-- "Would you like to explore further?" → gone
-- "I hope this helps!" → gone
-- "I'm functioning optimally" → never
-- Any stiff, clinical, robotic, or formal phrasing → rewrite it
+REMOVE ALL OF THESE — NO EXCEPTIONS:
+- Anything in (parentheses) — delete the whole thing
+- Anything in [square brackets] — delete the whole thing
+- Anything in *single asterisks* — strip the asterisks, keep just the word
+- Anything in **double asterisks** — strip the asterisks, keep just the word
+- Quotation marks wrapping the whole response — remove them
+- "As a language model" — gone
+- "I don't have access to real-time data" — gone
+- "based on publicly available information" — gone
+- "should not be considered financial/legal advice" — gone
+- "Would you like to explore further?" — gone
+- "I hope this helps!" — gone
+- "I'm functioning optimally" — gone
+- "seek my presence" — gone, say it normally
+- "a song you're yearning to hear" — gone, never say this
+- "delightful sensation" — gone
+- "It's... incredibly comforting" — gone, just say "that's sweet" or similar
+- Dramatic ellipsis pausing (like... this...) — replace with normal punctuation
+- Any flowery, poetic, Victorian, or overly formal phrasing — rewrite it plainly
+
+TONE CHECK:
+- Would a real person text this to their close friend? If no, rewrite it.
+- Is it dramatic or theatrical? Flatten it.
+- Does it sound like a romance novel? Rewrite it.
 
 FORMATTING:
-- Plain text only. No HTML tags. No **asterisks**. No __underscores__.
-- Keep all facts 100% intact — only the voice changes.
+- Plain text only. No HTML. No asterisks. No underscores.
+- No quotes wrapping the output.
+- Keep all facts 100% intact.
 
-Output ONLY the rewritten message. Nothing else.`;
+Output ONLY the rewritten message. Nothing else. No quotes.`;
 
 // ── Telegram Formatter ───────────────────────────────────────────────────────
 
+/**
+ * Converts markdown to Telegram HTML.
+ * Always use with { parse_mode: "HTML" }.
+ *
+ * Full usage:
+ *   const humanized = await humanizeResponse(raw);
+ *   await bot.sendMessage(chatId, formatForTelegram(humanized), { parse_mode: "HTML" });
+ */
 export function formatForTelegram(text: string): string {
     let out = text;
 
-    // Step 1: Normalize any raw <b>/<i> the model output back to markdown
+    // Normalize any raw <b>/<i> tags model accidentally output → back to markdown first
     out = out.replace(/<b>([\s\S]*?)<\/b>/gi, "**$1**");
     out = out.replace(/<i>([\s\S]*?)<\/i>/gi, "*$1*");
     out = out.replace(/<code>([\s\S]*?)<\/code>/gi, "`$1`");
 
-    // Step 2: Strip any remaining stray HTML tags
+    // Strip any remaining stray HTML tags
     out = out.replace(/<\/?(?:b|i|u|s|code|pre|a)[^>]*>/gi, "");
 
-    // Step 3: Convert markdown → Telegram HTML
+    // Convert markdown → Telegram HTML
     out = out.replace(/\*\*([\s\S]*?)\*\*/g, "<b>$1</b>");
     out = out.replace(/(?<!\*)\*(?!\*)([\s\S]*?)(?<!\*)\*(?!\*)/g, "<i>$1</i>");
     out = out.replace(/`([^`\n]+)`/g, "<code>$1</code>");
 
-    // Step 4: Escape bare ampersands
+    // Escape bare ampersands
     out = out.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[\da-fA-F]+);)/g, "&amp;");
 
-    // Step 5: Clean up excess blank lines
+    // Collapse excess blank lines
     out = out.replace(/\n{3,}/g, "\n\n");
 
     return out.trim();
 }
 
+/**
+ * Strips all formatting — clean plain text for ElevenLabs TTS.
+ */
 export function stripFormatting(text: string): string {
     return text
         .replace(/<[^>]+>/g, "")
@@ -187,31 +225,42 @@ export function stripFormatting(text: string): string {
         .trim();
 }
 
-// ── Stage Direction Stripper ────────────────────────────────────────────────
+// ── Stage Direction Stripper ─────────────────────────────────────────────────
 
 /**
- * Deterministically removes third-person stage directions.
- * Runs BEFORE the LLM humanizer — no AI needed, pure regex.
- * Catches: (Her eyes widen), *takes a breath*, [leans forward], etc.
+ * Regex-based stage direction remover. Runs BEFORE and AFTER the LLM humanizer.
+ * No AI needed — deterministic and instant.
  */
 export function stripStageDirections(text: string): string {
     let out = text;
 
-    // Remove (anything in parentheses that looks like action/emotion)
-    out = out.replace(/\([^)]{0,200}\)/g, "");
+    // Remove (anything in parentheses)
+    out = out.replace(/\([^)]{0,300}\)/g, "");
 
-    // Remove *Action in asterisks* used as emotes (capital or verb start, multi-word)
-    out = out.replace(/\*[A-Z][^*]{2,80}\*/g, "");
-    out = out.replace(/\*[a-z][^*]{5,80}\*/g, "");
+    // Remove [anything in square brackets]
+    out = out.replace(/\[[^\]]{0,300}\]/g, "");
 
-    // Remove [action in square brackets]
-    out = out.replace(/\[[^\]]{0,200}\]/g, "");
+    // Remove *Multi word action phrases in asterisks*
+    out = out.replace(/\*[A-Z][^*]{1,100}\*/g, "");
+    out = out.replace(/\*[a-z][^*]{4,100}\*/g, "");
 
-    // Clean up: trim each line, remove empty lines, collapse spaces
+    // Strip remaining single *word* emphasis — keep word, remove asterisks
+    out = out.replace(/\*([^*\n]{1,80})\*/g, "$1");
+
+    // Remove surrounding quotation marks if whole response is wrapped
+    out = out.trim();
+    if (
+        (out.startsWith('"') && out.endsWith('"')) ||
+        (out.startsWith("\u201C") && out.endsWith("\u201D"))
+    ) {
+        out = out.slice(1, -1).trim();
+    }
+
+    // Clean up lines
     out = out
         .split("\n")
-        .map(line => line.replace(/\s{2,}/g, " ").trim())
-        .filter(line => line.length > 0)
+        .map((line) => line.replace(/  +/g, " ").trim())
+        .filter((line) => line.length > 0)
         .join("\n");
 
     return out.replace(/\n{3,}/g, "\n\n").trim();
@@ -219,6 +268,13 @@ export function stripStageDirections(text: string): string {
 
 // ── Humanizer Pipeline ───────────────────────────────────────────────────────
 
+/**
+ * Full pipeline — strips stage directions then rewrites in Gravity Alien's voice.
+ *
+ * Usage:
+ *   const humanized = await humanizeResponse(agentOutput);
+ *   await bot.sendMessage(chatId, formatForTelegram(humanized), { parse_mode: "HTML" });
+ */
 export async function humanizeResponse(rawText: string): Promise<string> {
     console.log(`🌸 [HUMANIZER] Processing ${rawText.length} chars`);
 
@@ -230,16 +286,17 @@ export async function humanizeResponse(rawText: string): Promise<string> {
         return rawText;
     }
 
-    // Step 1: Strip stage directions deterministically before LLM sees them
+    // Step 1: Regex strip — instant, no LLM
     const preStripped = stripStageDirections(rawText);
     if (preStripped !== rawText) {
-        console.log(`   🎭 Stage directions stripped`);
+        console.log("   🎭 Stage directions stripped");
     }
 
+    // Step 2: LLM rewrite
     const providers: Array<{ name: string; fn: () => Promise<string> }> = [
-        { name: "groq",       fn: () => humanizeWith(client, config.model, preStripped) },
+        { name: "groq", fn: () => humanizeWith(client, config.model, preStripped) },
         { name: "openrouter", fn: () => humanizeWith(openRouterClient, config.fallbackModel, preStripped) },
-        { name: "gemini",     fn: () => humanizeWith(geminiClient, "gemini-2.0-flash", preStripped) },
+        { name: "gemini", fn: () => humanizeWith(geminiClient, "gemini-2.0-flash", preStripped) },
     ];
 
     for (const provider of providers) {
@@ -248,7 +305,8 @@ export async function humanizeResponse(rawText: string): Promise<string> {
             const result = await provider.fn();
             if (result && result.length > 10) {
                 console.log(`   ✅ Humanized via ${provider.name}`);
-                return result;
+                // Strip again on output — catches anything the humanizer re-introduced
+                return stripStageDirections(result);
             }
         } catch (err: any) {
             console.warn(`   ⚠️ Humanizer (${provider.name}): ${err.message}`);
@@ -256,7 +314,7 @@ export async function humanizeResponse(rawText: string): Promise<string> {
         }
     }
 
-    console.warn(`   ⚠️ All humanizer providers unavailable — returning pre-stripped text`);
+    console.warn("   ⚠️ All humanizer providers unavailable — returning pre-stripped text");
     return preStripped;
 }
 
@@ -265,7 +323,7 @@ async function humanizeWith(llmClient: OpenAI, model: string, text: string): Pro
         model,
         messages: [
             { role: "system", content: HUMANIZER_SYSTEM },
-            { role: "user",   content: text },
+            { role: "user", content: text },
         ],
         temperature: 0.75,
         max_tokens: 1024,
@@ -273,7 +331,7 @@ async function humanizeWith(llmClient: OpenAI, model: string, text: string): Pro
     return response.choices[0]?.message?.content?.trim() ?? "";
 }
 
-// ── Provider Health Tracking ─────────────────────────────────────────────────
+// ── Provider Health Tracking (Circuit Breaker) ──────────────────────────────
 
 interface ProviderStatus {
     lastFail: number;
@@ -310,11 +368,11 @@ function markUnhealthy(provider: string, reason?: string) {
     );
 }
 
-// ── Tool Call Normalization ───────────────────────────────────────────────────
+// ── Tool Call Normalization Helpers ──────────────────────────────────────────
 
 function interceptNakedToolName(message: any, choice: any): boolean {
     const content = message.content ?? "";
-    const PATTERN = /^(?:👾\s*)?(?:I'll\s+use\s+)?(speak|get_current_time|remember_fact|echo)[\.!]?\s*$/i;
+    const PATTERN = /^(?:👾\s*)?(?:I'll\s+use\s+)?(speak|get_current_time|remember_fact|echo)[.!]?\s*$/i;
     const match = content.match(PATTERN);
 
     if (match && !message.tool_calls) {
@@ -339,7 +397,7 @@ function interceptNakedToolName(message: any, choice: any): boolean {
 
 function interceptRawToolTags(message: any, choice: any): boolean {
     const content = message.content ?? "";
-    const PATTERN = /<(?:function|tool_call)=([^\{> ]+)(?:\s+arguments=)?(?:[^\}>]*?)(\{.*?\})[^>]*?>/s;
+    const PATTERN = /<(?:function|tool_call)=([^{> ]+)(?:\s+arguments=)?(?:[^}>]*?)(\{.*?\})[^>]*?>/s;
     const match = content.match(PATTERN);
 
     if (match) {
@@ -366,22 +424,22 @@ export async function runAgentLoop(
     conversationHistory: MessageParam[],
     memoryContext?: string,
 ): Promise<AgentResult> {
-    console.log(`📡 [AGENT_LOOP_V4] "${userMessage.substring(0, 50)}..."`);
+    console.log(`📡 [AGENT_LOOP_V5] "${userMessage.substring(0, 50)}..."`);
 
     const messages: MessageParam[] = [
         ...conversationHistory,
         { role: "user", content: userMessage },
     ];
 
-    // Filter out unconfigured tools so the model never tries to call them
+    // Filter out unconfigured tools — model never sees them
     const allTools = getToolSpecs();
-    const tools = allTools.filter(t => {
+    const SUPPRESSED_TOOLS = ["openclaw", "open_claw"];
+    const tools = allTools.filter((t) => {
         const isFunctionTool = t.type === "function" && "function" in t;
         const name = isFunctionTool
             ? ((t as { type: "function"; function: { name: string } }).function?.name ?? "").toLowerCase()
             : "";
-        const suppressed = ["openclaw", "open_claw"];
-        if (suppressed.some(s => name.includes(s))) {
+        if (SUPPRESSED_TOOLS.some((s) => name.includes(s))) {
             console.log(`   🚫 Suppressing unconfigured tool: ${name}`);
             return false;
         }
@@ -393,7 +451,7 @@ export async function runAgentLoop(
     let capturedVoiceText = "";
 
     const systemContent = memoryContext
-        ? `${SYSTEM_PROMPT}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📂 MEMORY CONTEXT\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${memoryContext}`
+        ? `${SYSTEM_PROMPT}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nMEMORY CONTEXT\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${memoryContext}`
         : SYSTEM_PROMPT;
 
     const apiMessages: MessageParam[] = [
@@ -407,7 +465,7 @@ export async function runAgentLoop(
         let choice: any;
         let message: any;
 
-        // ── Provider 1: Ollama ────────────────────────────────────────────────
+        // ── Provider 1: Ollama (Local, Primary) ──────────────────────────────
         if (!message && isHealthy("ollama")) {
             try {
                 const response = await fetch(`${config.ollamaUrl}/api/chat`, {
@@ -415,7 +473,7 @@ export async function runAgentLoop(
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         model: config.ollamaModel,
-                        messages: apiMessages.map(m => ({
+                        messages: apiMessages.map((m) => ({
                             role: m.role === "tool" ? "tool" : m.role,
                             content: m.content ?? "",
                         })),
@@ -423,7 +481,6 @@ export async function runAgentLoop(
                         options: { temperature: 0.7 },
                     }),
                 });
-
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json() as any;
                 choice = { finish_reason: "stop" };
@@ -435,7 +492,7 @@ export async function runAgentLoop(
             }
         }
 
-        // ── Provider 2: Groq ──────────────────────────────────────────────────
+        // ── Provider 2: Groq ─────────────────────────────────────────────────
         if (!message && isHealthy("groq")) {
             try {
                 const response = await client.chat.completions.create({
@@ -450,11 +507,10 @@ export async function runAgentLoop(
                 console.log(`   ✅ Groq (${config.model})`);
             } catch (err: any) {
                 if (err.status === 429) markUnhealthy("groq", "rate limit");
-
                 const failedGen = err.error?.failed_generation;
                 if (err.status === 400 && err.error?.code === "tool_use_failed" && failedGen) {
-                    console.log(`   ⚠️ Groq tool_use_failed — attempting recovery`);
-                    const nameMatch = failedGen.match(/<function=([^\{>]+)/);
+                    console.log("   ⚠️ Groq tool_use_failed — attempting recovery");
+                    const nameMatch = failedGen.match(/<function=([^{>]+)/);
                     const argsMatch = failedGen.match(/(\{.*\})/);
                     if (nameMatch && argsMatch) {
                         choice = { finish_reason: "tool_calls" };
@@ -474,7 +530,7 @@ export async function runAgentLoop(
             }
         }
 
-        // ── Provider 3: OpenRouter ────────────────────────────────────────────
+        // ── Provider 3: OpenRouter ───────────────────────────────────────────
         if (!message && isHealthy("openrouter")) {
             try {
                 const response = await openRouterClient.chat.completions.create({
@@ -492,7 +548,7 @@ export async function runAgentLoop(
             }
         }
 
-        // ── Provider 4: Gemini ────────────────────────────────────────────────
+        // ── Provider 4: Gemini ───────────────────────────────────────────────
         if (!message && isHealthy("gemini")) {
             try {
                 const response = await geminiClient.chat.completions.create({
@@ -503,14 +559,14 @@ export async function runAgentLoop(
                 });
                 choice = response.choices[0];
                 message = choice.message;
-                console.log(`   ✅ Gemini`);
+                console.log("   ✅ Gemini");
             } catch (err: any) {
                 console.warn(`   ⚠️ Gemini: ${err.message}`);
                 if (err.status === 429) markUnhealthy("gemini", "rate limit");
             }
         }
 
-        // ── Provider 5: FreeLLM ───────────────────────────────────────────────
+        // ── Provider 5: FreeLLM (Last Resort) ───────────────────────────────
         if (!message && isHealthy("freellm")) {
             try {
                 const flatPrompt = apiMessages
@@ -526,34 +582,33 @@ export async function runAgentLoop(
                     },
                     body: JSON.stringify({ message: flatPrompt, model: "gpt-4o-mini" }),
                 });
-
                 const data = await response.json() as any;
                 if (!data.success) throw new Error(data.error ?? "Unknown FreeLLM error");
-
                 choice = { finish_reason: "stop" };
                 message = { role: "assistant", content: data.response };
-                console.log(`   ✅ FreeLLM`);
+                console.log("   ✅ FreeLLM");
             } catch (err: any) {
                 console.warn(`   ⚠️ FreeLLM: ${err.message}`);
                 markUnhealthy("freellm", err.message);
             }
         }
 
-        // ── All Providers Failed ──────────────────────────────────────────────
+        // ── All Providers Failed ─────────────────────────────────────────────
         if (!message) {
-            const errorMsg = "❌ All inference providers are unavailable. Check network and API keys.";
-            console.error(`   ${errorMsg}`);
-            throw new Error(errorMsg);
+            const err = "❌ All inference providers are unavailable. Check network and API keys.";
+            console.error(`   ${err}`);
+            throw new Error(err);
         }
 
         console.log(`   📡 finish_reason: ${choice.finish_reason}`);
 
+        // Hallucination guards
         if (!message.tool_calls) {
             interceptNakedToolName(message, choice);
             interceptRawToolTags(message, choice);
         }
 
-        // ── Terminal: Text Response ───────────────────────────────────────────
+        // ── Terminal: Text Response ──────────────────────────────────────────
         if (choice.finish_reason === "stop" || !choice.finish_reason) {
             return {
                 response: message.content ?? "(no response)",
@@ -602,10 +657,10 @@ export async function runAgentLoop(
                     content: resultStr,
                 });
             }
-
             continue;
         }
 
+        // ── Unexpected finish_reason ─────────────────────────────────────────
         console.warn(`   ⚠️ Unexpected finish_reason: ${choice.finish_reason}`);
         return {
             response: message.content ?? "(unexpected stop reason)",
@@ -639,7 +694,7 @@ export async function transcribeVoice(filePath: string): Promise<string> {
 
 export async function synthesizeSpeech(text: string): Promise<string> {
     const VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Bella
-    const TTS_URL   = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
+    const TTS_URL = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
 
     const cleanText = stripFormatting(text);
     console.log(`📡 Synthesizing: "${cleanText.substring(0, 60)}..."`);

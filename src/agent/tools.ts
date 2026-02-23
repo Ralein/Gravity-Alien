@@ -1,4 +1,6 @@
 import type { ToolDefinition } from "../types/index.js";
+import { mcpManager } from "./mcp.js";
+import { gsdManager } from "./gsd.js";
 
 // ── Built-in Tools ──────────────────────────────────────────────────────
 
@@ -111,6 +113,85 @@ const rememberFact: ToolDefinition = {
     },
 };
 
+const gsdNewProject: ToolDefinition = {
+    spec: {
+        type: "function",
+        function: {
+            name: "gsd_new_project",
+            description: "Initialize a new project with goals and vision. Creates .planning/ PROJECT.md, REQUIREMENTS.md, ROADMAP.md, and STATE.md.",
+            parameters: {
+                type: "object",
+                properties: {
+                    goals: {
+                        type: "string",
+                        description: "The overarching goals and vision for the project",
+                    },
+                },
+                required: ["goals"],
+            },
+        }
+    },
+    handler: async (input) => {
+        return await gsdManager.initializeProject(input["goals"] as string);
+    },
+};
+
+const gsdPlanPhase: ToolDefinition = {
+    spec: {
+        type: "function",
+        function: {
+            name: "gsd_plan_phase",
+            description: "Plan a specific phase of the project. Captures context and prepares for execution.",
+            parameters: {
+                type: "object",
+                properties: {
+                    phaseNum: {
+                        type: "number",
+                        description: "The phase number to plan",
+                    },
+                    context: {
+                        type: "string",
+                        description: "User preferences and specific implementation details for this phase",
+                    },
+                },
+                required: ["phaseNum", "context"],
+            },
+        }
+    },
+    handler: async (input) => {
+        return await gsdManager.planPhase(input["phaseNum"] as number, input["context"] as string);
+    },
+};
+
+const gsdProgress: ToolDefinition = {
+    spec: {
+        type: "function",
+        function: {
+            name: "gsd_progress",
+            description: "Shows the current progress of the project based on .planning/ files.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: [],
+            }
+        }
+    },
+    handler: async () => {
+        const state = await gsdManager.getProjectState();
+        return typeof state === "string" ? state : JSON.stringify(state, null, 2);
+    },
+};
+
+
+let mcpInitialized = false;
+
+async function ensureMCP() {
+    if (!mcpInitialized) {
+        await mcpManager.initialize();
+        mcpInitialized = true;
+    }
+}
+
 // ── Registry ────────────────────────────────────────────────────────────
 
 /** All registered tools, keyed by name */
@@ -127,10 +208,21 @@ register(getCurrentTime);
 register(echo);
 register(speak);
 register(rememberFact);
+register(gsdNewProject);
+register(gsdPlanPhase);
+register(gsdProgress);
 
 /** Get all tool specs for the Groq API via OpenAI SDK */
 export function getToolSpecs() {
-    return Array.from(toolRegistry.values()).map((t) => t.spec);
+    const specs = Array.from(toolRegistry.values()).map((t) => t.spec);
+
+    // Add MCP tools
+    const mcpTools = mcpManager.getTools();
+    for (const tool of mcpTools) {
+        specs.push(tool.spec);
+    }
+
+    return specs;
 }
 
 /** Execute a tool by name. Returns the string result or an error message. */
@@ -138,7 +230,7 @@ export async function executeTool(
     name: string,
     input: Record<string, unknown>,
 ): Promise<string> {
-    const tool = toolRegistry.get(name);
+    const tool = toolRegistry.get(name) || mcpManager.getTool(name);
     if (!tool) {
         return `Error: Unknown tool "${name}"`;
     }
@@ -149,3 +241,6 @@ export async function executeTool(
         return `Error executing tool "${name}": ${message}`;
     }
 }
+
+// Initial trigger for MCP (async background)
+ensureMCP().catch(err => console.error("   ❌ [MCP] Async init failed:", err));
