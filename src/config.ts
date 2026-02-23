@@ -36,6 +36,7 @@ export const config: AppConfig = {
     model: process.env["GROQ_MODEL"] ?? "llama-3.3-70b-versatile",
     fallbackModel: process.env["ANTHROPIC_MODEL"] ?? "anthropic/claude-3.5-sonnet",
     maxIterations: Number(process.env["MAX_AGENT_ITERATIONS"] ?? "10"),
+    elevenLabsApiKey: requireEnv("ELEVENLABS_API_KEY"),
 };
 
 // Startup confirmation (no secrets leaked)

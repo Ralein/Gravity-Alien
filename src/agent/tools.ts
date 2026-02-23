@@ -51,6 +51,30 @@ const echo: ToolDefinition = {
     },
 };
 
+const speak: ToolDefinition = {
+    spec: {
+        type: "function",
+        function: {
+            name: "speak",
+            description:
+                "Use this tool when you want to respond with a voice message instead of or in addition to text. The message will be synthesized into a high-quality voice message.",
+            parameters: {
+                type: "object",
+                properties: {
+                    message: {
+                        type: "string",
+                        description: "The message to synthesize into speech",
+                    },
+                },
+                required: ["message"],
+            }
+        }
+    },
+    handler: async (input) => {
+        return `VOICE_PROMPT: ${input["message"] ?? "(empty)"}`;
+    },
+};
+
 // ── Registry ────────────────────────────────────────────────────────────
 
 /** All registered tools, keyed by name */
@@ -65,6 +89,7 @@ function register(tool: ToolDefinition): void {
 // Register built-in tools
 register(getCurrentTime);
 register(echo);
+register(speak);
 
 /** Get all tool specs for the Groq API via OpenAI SDK */
 export function getToolSpecs() {

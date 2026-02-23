@@ -1,5 +1,8 @@
 import OpenAI from "openai";
 import fs from "fs-extra";
+import path from "path";
+import fetch from "node-fetch";
+import { tmpdir } from "os";
 import { config } from "../config.js";
 import type { AgentResult, MessageParam } from "../types/index.js";
 import { executeTool, getToolSpecs } from "./tools.js";
@@ -47,6 +50,7 @@ export async function runAgentLoop(
     const tools = getToolSpecs();
     let totalToolCalls = 0;
     let iterations = 0;
+    let capturedVoiceText = "";
 
     const apiMessages: MessageParam[] = [
         { role: "system", content: SYSTEM_PROMPT },
@@ -144,7 +148,12 @@ export async function runAgentLoop(
         // Check stop reason
         if (choice.finish_reason === "stop" || !choice.finish_reason) {
             // Groq finished with a text response
-            return { response: message.content ?? "(no response)", toolCalls: totalToolCalls, iterations };
+            return {
+                response: message.content ?? "(no response)",
+                toolCalls: totalToolCalls,
+                iterations,
+                voiceText: capturedVoiceText || undefined
+            };
         }
 
         if (choice.finish_reason === "tool_calls") {
@@ -163,6 +172,10 @@ export async function runAgentLoop(
                         console.error(`   ❌ Failed to parse JSON arguments: ${toolCall.function.arguments}`);
                     }
 
+                    if (toolCall.function.name === "speak") {
+                        capturedVoiceText = String(args["message"] ?? "");
+                    }
+
                     const resultStr = await executeTool(toolCall.function.name, args);
 
                     apiMessages.push({
@@ -176,7 +189,12 @@ export async function runAgentLoop(
         }
 
         // Any other stop reason — still return any text content we got
-        return { response: message.content ?? "(unexpected stop reason)", toolCalls: totalToolCalls, iterations };
+        return {
+            response: message.content ?? "(unexpected stop reason)",
+            toolCalls: totalToolCalls,
+            iterations,
+            voiceText: capturedVoiceText || undefined
+        };
     }
 
     // Safety limit hit
@@ -199,4 +217,44 @@ export async function transcribeVoice(filePath: string): Promise<string> {
         response_format: "verbose_json",
     });
     return transcription.text;
+}
+
+/**
+ * Synthesizes speech using ElevenLabs API.
+ * @param text The text to convert to speech.
+ * @returns Path to the generated audio file.
+ */
+export async function synthesizeSpeech(text: string): Promise<string> {
+    console.log(`📡 Synthesizing speech: ${text.substring(0, 50)}...`);
+
+    // Using default voice (Rachel: 21m0obfVpEBU28O3mLoJ)
+    const voiceId = "21m0obfVpEBU28O3mLoJ";
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+    const response = await fetch(url as any, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "xi-api-key": config.elevenLabsApiKey,
+        },
+        body: JSON.stringify({
+            text,
+            model_id: "eleven_monolingual_v1",
+            voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.5,
+            },
+        }),
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`ElevenLabs API error: ${response.status} ${errText}`);
+    }
+
+    const audioBuffer = await (response as any).buffer();
+    const tempPath = path.join(tmpdir(), `speech_${Date.now()}.mp3`);
+    await fs.writeFile(tempPath, audioBuffer);
+
+    return tempPath;
 }

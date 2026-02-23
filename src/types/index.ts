@@ -13,6 +13,7 @@ export interface AppConfig {
     model: string;
     fallbackModel: string;
     maxIterations: number;
+    elevenLabsApiKey: string;
 }
 
 // ── Agent ───────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ export interface AgentResult {
     response: string;
     toolCalls: number;
     iterations: number;
+    voiceText?: string;
 }
 
 // Re-export useful OpenAI types for convenience

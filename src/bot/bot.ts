@@ -1,6 +1,6 @@
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 import { config } from "../config.js";
-import { runAgentLoop, transcribeVoice } from "../agent/agent.js";
+import { runAgentLoop, transcribeVoice, synthesizeSpeech } from "../agent/agent.js";
 import type { MessageParam } from "../types/index.js";
 import fs from "fs-extra";
 import path from "path";
@@ -90,7 +90,7 @@ export function createBot() {
             await ctx.reply(`_You said:_ "${transcription}"`, { parse_mode: "Markdown" });
 
             // Process as text
-            await handleMessage(ctx, userId, transcription);
+            await handleMessage(ctx, userId, transcription, true);
 
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -107,10 +107,13 @@ export function createBot() {
     /**
      * Common logic for handling a text prompt through the agent loop.
      */
-    async function handleMessage(ctx: any, userId: number, userMessage: string) {
+    /**
+     * Common logic for handling a text prompt through the agent loop.
+     */
+    async function handleMessage(ctx: any, userId: number, userMessage: string, forceVoice: boolean = false) {
         const history = getHistory(userId);
 
-        // Show typing indicator again if it might have expired
+        // Show typing indicator
         await ctx.replyWithChatAction("typing");
 
         try {
@@ -125,13 +128,41 @@ export function createBot() {
                 history.shift();
             }
 
-            // Send response
-            const maxLen = 4000;
-            if (result.response.length <= maxLen) {
-                await ctx.reply(result.response);
-            } else {
-                for (let i = 0; i < result.response.length; i += maxLen) {
-                    await ctx.reply(result.response.substring(i, i + maxLen));
+            // Check if the agent wants to speak
+            let finalResponse = result.response;
+            let voiceText = result.voiceText || "";
+
+            if (forceVoice && !voiceText) {
+                voiceText = finalResponse;
+            }
+
+            // Send voice response if needed
+            if (voiceText) {
+                await ctx.replyWithChatAction("upload_voice");
+                let voicePath = "";
+                try {
+                    voicePath = await synthesizeSpeech(voiceText);
+                    await ctx.replyWithVoice(new InputFile(voicePath));
+                } catch (speechErr) {
+                    console.error("   ❌ TTS Error:", speechErr);
+                    // Fallback to text if TTS fails
+                    if (!finalResponse) finalResponse = voiceText;
+                } finally {
+                    if (voicePath && await fs.pathExists(voicePath)) {
+                        await fs.remove(voicePath);
+                    }
+                }
+            }
+
+            // Send text response if there's anything left
+            if (finalResponse) {
+                const maxLen = 4000;
+                if (finalResponse.length <= maxLen) {
+                    await ctx.reply(finalResponse);
+                } else {
+                    for (let i = 0; i < finalResponse.length; i += maxLen) {
+                        await ctx.reply(finalResponse.substring(i, i + maxLen));
+                    }
                 }
             }
 
