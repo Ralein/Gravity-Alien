@@ -31,8 +31,10 @@ function parseUserIds(raw: string): number[] {
 export const config: AppConfig = {
     telegramToken: requireEnv("TELEGRAM_BOT_TOKEN"),
     groqApiKey: requireEnv("GROQ_API_KEY"),
+    openRouterApiKey: requireEnv("OPENROUTER_API_KEY"),
     allowedUserIds: parseUserIds(requireEnv("ALLOWED_USER_IDS")),
     model: process.env["GROQ_MODEL"] ?? "llama-3.3-70b-versatile",
+    fallbackModel: process.env["ANTHROPIC_MODEL"] ?? "anthropic/claude-3.5-sonnet",
     maxIterations: Number(process.env["MAX_AGENT_ITERATIONS"] ?? "10"),
 };
 

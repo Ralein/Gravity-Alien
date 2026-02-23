@@ -8,8 +8,10 @@ import type {
 export interface AppConfig {
     telegramToken: string;
     groqApiKey: string;
+    openRouterApiKey: string;
     allowedUserIds: number[];
     model: string;
+    fallbackModel: string;
     maxIterations: number;
 }
 

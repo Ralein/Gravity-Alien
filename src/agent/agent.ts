@@ -10,6 +10,11 @@ const client = new OpenAI({
     baseURL: "https://api.groq.com/openai/v1",
 });
 
+const openRouterClient = new OpenAI({
+    apiKey: config.openRouterApiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+});
+
 const SYSTEM_PROMPT = `You are 👾 Gravity Alien, a personal AI assistant. You are helpful, concise, and security-conscious.
 
 You have access to tools. Use them when they would help answer the user's question.
@@ -50,23 +55,65 @@ export async function runAgentLoop(
     while (iterations < config.maxIterations) {
         iterations++;
 
-        let response;
+        let choice: any;
+        let message: any;
+
         try {
             // Call Groq via OpenAI client
-            response = await client.chat.completions.create({
+            const response = await client.chat.completions.create({
                 model: config.model,
                 messages: apiMessages,
                 tools: tools.length > 0 ? tools : undefined,
                 temperature: 0.2, // optional, makes it slightly more deterministic
+                parallel_tool_calls: false,
             });
-        } catch (err: unknown) {
-            // Log the full error for debugging
-            console.error("   ❌ API call failed:", err);
-            throw err;
-        }
+            choice = response.choices[0];
+            message = choice.message;
+        } catch (err: any) {
+            // Intercept Groq's Llama-3 "tool_use_failed" error where it returns raw <function> tags
+            const failedGen = err.error?.failed_generation;
+            if (err.status === 400 && err.error?.code === "tool_use_failed" && failedGen) {
+                console.log(`\n   ⚠️ Groq parsing error intercepted. Raw Llama output: ${failedGen}`);
 
-        const choice = response.choices[0];
-        const message = choice.message;
+                const nameMatch = failedGen.match(/<function=([^\{>]+)/);
+                const argsMatch = failedGen.match(/(\{.*\})/);
+
+                if (nameMatch && argsMatch) {
+                    const funcName = nameMatch[1];
+                    const funcArgs = argsMatch[1];
+                    const callId = "call_" + Math.random().toString(36).substring(2, 9);
+
+                    choice = { finish_reason: "tool_calls" };
+                    message = {
+                        role: "assistant",
+                        content: null,
+                        tool_calls: [{
+                            id: callId,
+                            type: "function",
+                            function: { name: funcName, arguments: funcArgs }
+                        }]
+                    };
+                } else {
+                    console.error("   ❌ API call failed (unparseable generation):", err);
+                    throw err;
+                }
+            } else {
+                console.warn(`   ⚠️ Groq API failed (${err.message}). Falling back to OpenRouter...`);
+                try {
+                    const fallbackResponse = await openRouterClient.chat.completions.create({
+                        model: config.fallbackModel,
+                        messages: apiMessages,
+                        tools: tools.length > 0 ? tools : undefined,
+                        temperature: 0.2,
+                    });
+                    choice = fallbackResponse.choices[0];
+                    message = choice.message;
+                } catch (fallbackErr: any) {
+                    console.error("   ❌ Fallback API call also failed:", fallbackErr.message);
+                    throw fallbackErr;
+                }
+            }
+        }
 
         console.log(`   📡 Response finish_reason: ${choice.finish_reason}`);
 
