@@ -9,7 +9,7 @@ const embeddingClient = new OpenAI({
 });
 
 const EMBEDDING_MODEL = "openai/text-embedding-3-small";
-const EMBEDDING_DIMENSIONS = 1536;
+const EMBEDDING_DIMENSIONS = 1024;
 
 /**
  * Generate a vector embedding for a text string.
@@ -22,7 +22,8 @@ export async function embed(text: string): Promise<number[]> {
     const response = await embeddingClient.embeddings.create({
         model: EMBEDDING_MODEL,
         input: truncated,
-    });
+        dimensions: EMBEDDING_DIMENSIONS,
+    } as any);
 
     return response.data[0].embedding;
 }
@@ -36,7 +37,8 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     const response = await embeddingClient.embeddings.create({
         model: EMBEDDING_MODEL,
         input: truncated,
-    });
+        dimensions: EMBEDDING_DIMENSIONS,
+    } as any);
 
     return response.data.map((d) => d.embedding);
 }

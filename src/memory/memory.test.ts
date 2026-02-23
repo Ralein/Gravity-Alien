@@ -19,8 +19,8 @@ async function runTests() {
         const vector = await embed("Hello, world!");
         console.log(`   ✅ Generated vector of length ${vector.length}`);
 
-        // 2. Test Supabase Core Memory
-        console.log("\n2️⃣ Testing Supabase Core Memory...");
+        // 2. Test SQLite Core Memory
+        console.log("\n2️⃣ Testing SQLite Core Memory...");
         const factId = await saveCoreMemory(userId, "Testing memory system", "context", 10);
         if (factId) {
             console.log(`   ✅ Saved core memory: ${factId}`);

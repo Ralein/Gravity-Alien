@@ -140,7 +140,7 @@ export function createBot() {
         await ctx.replyWithChatAction("typing");
 
         try {
-            const result = await runAgentLoop(userMessage, history, formattedContext);
+            const result = await runAgentLoop(userId, userMessage, history, formattedContext);
 
             // Update conversation history with user message and assistant response
             await memoryManager.addExchange(userId, userMessage, result.response);

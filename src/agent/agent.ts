@@ -6,6 +6,7 @@ import { tmpdir } from "os";
 import { config } from "../config.js";
 import type { AgentResult, MessageParam } from "../types/index.js";
 import { executeTool, getToolSpecs } from "./tools.js";
+import { saveCoreMemory } from "../memory/localStore.js";
 
 // ── OpenAI client (singleton) configured for Groq ───────────────────────
 
@@ -36,6 +37,25 @@ Key behaviors:
 - Use tools proactively when they're relevant.
 - IMPORTANT: When the user asks you to send a voice message, speak, or say something aloud, you MUST call the "speak" tool with the message. Do NOT just reply with text claiming you sent a voice message — you must actually invoke the speak tool. The tool will synthesize real audio that the user will hear.`;
 
+// ── Provider Health Tracking (Circuit Breaker) ──────────────────────────
+
+const providerCooldowns: Record<string, number> = {};
+const COOLDOWN_DURATION = 10 * 60 * 1000; // 10 minutes
+
+function isHealthy(provider: string): boolean {
+    const lastFail = providerCooldowns[provider] || 0;
+    const healthy = Date.now() - lastFail > COOLDOWN_DURATION;
+    if (!healthy) {
+        console.warn(`   ⌛ Skipping ${provider} (in cooldown)`);
+    }
+    return healthy;
+}
+
+function markUnhealthy(provider: string) {
+    providerCooldowns[provider] = Date.now();
+    console.warn(`   💊 ${provider} marked as unhealthy for 10 mins`);
+}
+
 // ── Agentic Loop ────────────────────────────────────────────────────────
 
 /**
@@ -44,6 +64,7 @@ Key behaviors:
  * or the safety limit is hit.
  */
 export async function runAgentLoop(
+    userId: number,
     userMessage: string,
     conversationHistory: MessageParam[],
     memoryContext?: string,
@@ -70,133 +91,135 @@ export async function runAgentLoop(
         let choice: any;
         let message: any;
 
-        try {
-            // Call Groq via OpenAI client
-            const response = await client.chat.completions.create({
-                model: config.model,
-                messages: apiMessages,
-                tools: tools.length > 0 ? tools : undefined,
-                temperature: 0.2, // optional, makes it slightly more deterministic
-                parallel_tool_calls: false,
-            });
-            choice = response.choices[0];
-            message = choice.message;
-        } catch (err: any) {
-            // Intercept Groq's Llama-3 "tool_use_failed" error where it returns raw <function> tags
-            const failedGen = err.error?.failed_generation;
-            if (err.status === 400 && err.error?.code === "tool_use_failed" && failedGen) {
-                console.log(`\n   ⚠️ Groq parsing error intercepted. Raw Llama output: ${failedGen}`);
+        // 1. Try Groq (Primary)
+        if (isHealthy("groq")) {
+            try {
+                const response = await client.chat.completions.create({
+                    model: config.model,
+                    messages: apiMessages,
+                    tools: tools.length > 0 ? tools : undefined,
+                    temperature: 0.2,
+                    parallel_tool_calls: false,
+                });
+                choice = response.choices[0];
+                message = choice.message;
+            } catch (err: any) {
+                if (err.status === 429) markUnhealthy("groq");
 
-                const nameMatch = failedGen.match(/<function=([^\{>]+)/);
-                const argsMatch = failedGen.match(/(\{.*\})/);
-
-                if (nameMatch && argsMatch) {
-                    const funcName = nameMatch[1];
-                    const funcArgs = argsMatch[1];
-                    const callId = "call_" + Math.random().toString(36).substring(2, 9);
-
-                    choice = { finish_reason: "tool_calls" };
-                    message = {
-                        role: "assistant",
-                        content: null,
-                        tool_calls: [{
-                            id: callId,
-                            type: "function",
-                            function: { name: funcName, arguments: funcArgs }
-                        }]
-                    };
-                } else {
-                    console.error("   ❌ API call failed (unparseable generation):", err);
-                    throw err;
-                }
-            } else {
-                console.warn(`   ⚠️ Groq API failed (${err.message}). Falling back to OpenRouter...`);
-                try {
-                    const fallbackResponse = await openRouterClient.chat.completions.create({
-                        model: config.fallbackModel,
-                        messages: apiMessages,
-                        tools: tools.length > 0 ? tools : undefined,
-                        temperature: 0.2,
-                    });
-                    choice = fallbackResponse.choices[0];
-                    message = choice.message;
-                } catch (fallbackErr: any) {
-                    console.warn(`   ⚠️ OpenRouter also failed (${fallbackErr.message}). Falling back to Gemini...`);
-                    try {
-                        const geminiResponse = await geminiClient.chat.completions.create({
-                            model: "gemini-2.0-flash",
-                            messages: apiMessages,
-                            tools: tools.length > 0 ? tools : undefined,
-                            temperature: 0.2,
-                        });
-                        choice = geminiResponse.choices[0];
-                        message = choice.message;
-                    } catch (geminiErr: any) {
-                        console.warn(`   ⚠️ Gemini also failed (${geminiErr.message}). Falling back to FreeLLM...`);
-                        try {
-                            // FreeLLM uses a custom API format — flatten messages into a single prompt
-                            const flatPrompt = apiMessages
-                                .filter((m: any) => m.role !== "tool")
-                                .map((m: any) => `${m.role}: ${m.content ?? ""}`)
-                                .join("\n");
-
-                            const freeLlmResponse = await fetch("https://apifreellm.com/api/v1/chat" as any, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    "Authorization": `Bearer ${config.freeLlmApiKey}`,
-                                },
-                                body: JSON.stringify({ message: flatPrompt, model: "gpt-4o-mini" }),
-                            });
-
-                            const freeLlmData = await freeLlmResponse.json() as any;
-                            if (!freeLlmData.success) {
-                                throw new Error(`FreeLLM error: ${freeLlmData.error}`);
-                            }
-
-                            console.log(`   ✅ FreeLLM responded via ${freeLlmData.provider}/${freeLlmData.model}`);
-                            // Convert to OpenAI-compatible format
-                            choice = { finish_reason: "stop" };
-                            message = { role: "assistant", content: freeLlmData.response };
-                        } catch (freeLlmErr: any) {
-                            console.warn(`   ⚠️ FreeLLM also failed (${freeLlmErr.message}). Falling back to Ollama...`);
-                            try {
-                                const flatPrompt = apiMessages
-                                    .filter((m: any) => m.role !== "tool")
-                                    .map((m: any) => `${m.role}: ${m.content ?? ""}`)
-                                    .join("\n");
-
-                                const ollamaResponse = await fetch(`${config.ollamaUrl}/api/generate`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        model: config.ollamaModel,
-                                        prompt: flatPrompt,
-                                        stream: false,
-                                    }),
-                                });
-
-                                if (!ollamaResponse.ok) {
-                                    throw new Error(`Ollama error: ${ollamaResponse.statusText}`);
-                                }
-
-                                const ollamaData = await ollamaResponse.json() as any;
-                                console.log(`   ✅ Ollama responded via ${config.ollamaModel}`);
-                                choice = { finish_reason: "stop" };
-                                message = { role: "assistant", content: ollamaData.response };
-                            } catch (ollamaErr: any) {
-                                let finalErr = "❌ All 5 LLM providers failed.";
-                                if (ollamaErr.code === "ECONNREFUSED" || ollamaErr.message.includes("fetch failed")) {
-                                    finalErr += " Ollama is inactive (service not running).";
-                                } else {
-                                    finalErr += ` Ollama error: ${ollamaErr.message}`;
-                                }
-                                console.error(`   ${finalErr}`);
-                                throw new Error(finalErr);
-                            }
-                        }
+                // Intercept Llama-3 "tool_use_failed"
+                const failedGen = err.error?.failed_generation;
+                if (err.status === 400 && err.error?.code === "tool_use_failed" && failedGen) {
+                    console.log(`\n   ⚠️ Groq parsing error intercepted.`);
+                    const nameMatch = failedGen.match(/<function=([^\{>]+)/);
+                    const argsMatch = failedGen.match(/(\{.*\})/);
+                    if (nameMatch && argsMatch) {
+                        choice = { finish_reason: "tool_calls" };
+                        message = {
+                            role: "assistant",
+                            content: null,
+                            tool_calls: [{
+                                id: "call_" + Math.random().toString(36).substring(2, 9),
+                                type: "function",
+                                function: { name: nameMatch[1], arguments: argsMatch[1] }
+                            }]
+                        };
                     }
+                } else {
+                    console.warn(`   ⚠️ Groq failed: ${err.message}`);
                 }
+            }
+        }
+
+        // 2. Fallback to OpenRouter
+        if (!message && isHealthy("openrouter")) {
+            try {
+                const response = await openRouterClient.chat.completions.create({
+                    model: config.fallbackModel,
+                    messages: apiMessages,
+                    tools: tools.length > 0 ? tools : undefined,
+                    temperature: 0.2,
+                });
+                choice = response.choices[0];
+                message = choice.message;
+            } catch (err: any) {
+                console.warn(`   ⚠️ OpenRouter failed: ${err.message}`);
+                if (err.status === 429 || err.status === 402) markUnhealthy("openrouter");
+            }
+        }
+
+        // 3. Fallback to Gemini
+        if (!message && isHealthy("gemini")) {
+            try {
+                const response = await geminiClient.chat.completions.create({
+                    model: "gemini-2.0-flash",
+                    messages: apiMessages,
+                    tools: tools.length > 0 ? tools : undefined,
+                    temperature: 0.2,
+                });
+                choice = response.choices[0];
+                message = choice.message;
+            } catch (err: any) {
+                console.warn(`   ⚠️ Gemini failed: ${err.message}`);
+                if (err.status === 429) markUnhealthy("gemini");
+            }
+        }
+
+        // 4. Fallback to FreeLLM
+        if (!message && isHealthy("freellm")) {
+            try {
+                const flatPrompt = apiMessages
+                    .filter((m: any) => m.role !== "tool")
+                    .map((m: any) => `${m.role}: ${m.content ?? ""}`)
+                    .join("\n");
+
+                const response = await fetch("https://apifreellm.com/api/v1/chat" as any, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${config.freeLlmApiKey}`,
+                    },
+                    body: JSON.stringify({ message: flatPrompt, model: "gpt-4o-mini" }),
+                });
+
+                const data = await response.json() as any;
+                if (!data.success) throw new Error(data.error);
+
+                choice = { finish_reason: "stop" };
+                message = { role: "assistant", content: data.response };
+            } catch (err: any) {
+                console.warn(`   ⚠️ FreeLLM failed: ${err.message}`);
+                markUnhealthy("freellm");
+            }
+        }
+
+        // 5. Final Fallback to Ollama
+        if (!message) {
+            console.warn(`   ⚠️ Using Ollama (Local Fallback)...`);
+            try {
+                const flatPrompt = apiMessages
+                    .filter((m: any) => m.role !== "tool")
+                    .map((m: any) => `${m.role}: ${m.content ?? ""}`)
+                    .join("\n");
+
+                const response = await fetch(`${config.ollamaUrl}/api/generate`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: config.ollamaModel,
+                        prompt: flatPrompt,
+                        stream: false,
+                    }),
+                });
+
+                if (!response.ok) throw new Error(`Ollama down`);
+
+                const data = await response.json() as any;
+                choice = { finish_reason: "stop" };
+                message = { role: "assistant", content: data.response };
+            } catch (err: any) {
+                const finalErr = `❌ All models failed. Ollama status: ${err.message}`;
+                console.error(`   ${finalErr}`);
+                throw new Error(finalErr);
             }
         }
 
@@ -257,6 +280,16 @@ export async function runAgentLoop(
                     }
 
                     const resultStr = await executeTool(toolCall.function.name, args);
+
+                    // If it's a memory save, actually trigger the persistence
+                    if (toolCall.function.name === "remember_fact" && resultStr.startsWith("MEMORY_SAVE:")) {
+                        try {
+                            const memData = JSON.parse(resultStr.replace("MEMORY_SAVE: ", ""));
+                            await saveCoreMemory(userId, memData.fact, memData.category, memData.importance ?? 5);
+                        } catch (e) {
+                            console.error("   ❌ Failed to process memory save:", e);
+                        }
+                    }
 
                     apiMessages.push({
                         role: "tool",

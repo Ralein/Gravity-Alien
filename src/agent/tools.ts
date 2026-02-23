@@ -75,6 +75,42 @@ const speak: ToolDefinition = {
     },
 };
 
+const rememberFact: ToolDefinition = {
+    spec: {
+        type: "function",
+        function: {
+            name: "remember_fact",
+            description:
+                "Saves an important fact about the user to your permanent Core Memory. Use this when the user tells you something they want you to remember forever (e.g., their name, pet's name, birthday, allergies, or a strong preference). Do NOT use this for casual chat context—only for facts that build your long-term relationship.",
+            parameters: {
+                type: "object",
+                properties: {
+                    fact: {
+                        type: "string",
+                        description: "The concise fact to remember (e.g. 'User's dog is named Luna')",
+                    },
+                    category: {
+                        type: "string",
+                        enum: ["personal", "preference", "context", "instruction", "relationship", "event"],
+                        description: "The category of this fact",
+                    },
+                    importance: {
+                        type: "integer",
+                        minimum: 1,
+                        maximum: 10,
+                        description: "How critical this fact is (1-10, default 5)",
+                    },
+                },
+                required: ["fact", "category"],
+            }
+        }
+    },
+    handler: async (input) => {
+        // This is a marker for the agent loop to trigger a memory save
+        return `MEMORY_SAVE: ${JSON.stringify(input)}`;
+    },
+};
+
 // ── Registry ────────────────────────────────────────────────────────────
 
 /** All registered tools, keyed by name */
@@ -90,6 +126,7 @@ function register(tool: ToolDefinition): void {
 register(getCurrentTime);
 register(echo);
 register(speak);
+register(rememberFact);
 
 /** Get all tool specs for the Groq API via OpenAI SDK */
 export function getToolSpecs() {
