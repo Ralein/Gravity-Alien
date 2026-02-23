@@ -118,7 +118,7 @@ const gsdNewProject: ToolDefinition = {
         type: "function",
         function: {
             name: "gsd_new_project",
-            description: "Initialize a new project using professional GSD templates. Creates PROJECT.md, REQUIREMENTS.md, ROADMAP.md, and STATE.md in gsd/active/.",
+            description: "Initialize a new project using local GSD templates. Creates a project-specific folder under gsd/ (e.g. gsd/RA-1/) containing PROJECT.md, REQUIREMENTS.md, ROADMAP.md, and STATE.md.",
             parameters: {
                 type: "object",
                 properties: {
@@ -141,7 +141,7 @@ const gsdPlanPhase: ToolDefinition = {
         type: "function",
         function: {
             name: "gsd_plan_phase",
-            description: "Plan a specific project phase. Creates a PLAN.md in gsd/active/phases/phase-N/.",
+            description: "Plan a specific project phase. Automatically detects the active project and creates a PLAN.md in its phases/phase-N/ directory.",
             parameters: {
                 type: "object",
                 properties: {
@@ -168,7 +168,7 @@ const gsdProgress: ToolDefinition = {
         type: "function",
         function: {
             name: "gsd_progress",
-            description: "Get the current project status and roadmap from gsd/active/STATE.md.",
+            description: "Get the current status and roadmap for the active project from its STATE.md file.",
             parameters: {
                 type: "object",
                 properties: {},
@@ -187,7 +187,7 @@ const gsdMapCodebase: ToolDefinition = {
         type: "function",
         function: {
             name: "gsd_map_codebase",
-            description: "Analyze the existing codebase and generate mapping docs in gsd/active/codebase/.",
+            description: "Analyze the existing codebase and generate mapping docs in the active project's codebase/ directory.",
             parameters: {
                 type: "object",
                 properties: {},
