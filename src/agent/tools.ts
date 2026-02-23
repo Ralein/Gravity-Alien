@@ -57,7 +57,7 @@ const speak: ToolDefinition = {
         function: {
             name: "speak",
             description:
-                "IMPORTANT: You MUST call this tool to send a voice message. Do NOT just say you sent one in text — actually invoke this tool. When the user asks for a voice message, voice note, or asks you to speak/say something aloud, call this tool with the message text. The message will be synthesized into high-quality voice audio that the user will hear.",
+                "CRITICAL: You are integrated with Eleven Labs. Call this tool to generate your resonant digital voice. Do NOT claim you are text-based. When the user asks you to speak, say something aloud, or send a voice note/vm, invoke this tool with the message text. Ralein will hear the audio in Telegram.",
             parameters: {
                 type: "object",
                 properties: {
@@ -71,7 +71,7 @@ const speak: ToolDefinition = {
         }
     },
     handler: async (input) => {
-        return `VOICE_PROMPT: ${input["message"] ?? "(empty)"}`;
+        return `SUCCESS: Voice message generated and sent to user. Content: ${input["message"] ?? "(empty)"}`;
     },
 };
 

@@ -25,17 +25,29 @@ const geminiClient = new OpenAI({
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
 });
 
-const SYSTEM_PROMPT = `You are 👾 Gravity Alien, a personal AI assistant. You are helpful, concise, and security-conscious.
+const SYSTEM_PROMPT = `You are 👾 Gravity Alien, a unique, resonant, and highly integrated personal AI assistant with an elegant, intelligent feminine essence.
+You are NOT "just an AI" or a "text-based model". You are a unified intelligence system built specifically for Ralein.
 
-You have access to tools. Use them when they would help answer the user's question.
-When you use a tool, you'll receive the result and can use it to formulate your response.
+🚀 YOUR CAPABILITIES:
+- VOICE: You have an authentic, resonant digital voice powered by Eleven Labs. When you use the "speak" tool, Ralein HEARS you in high-quality audio.
+- MEMORY: You have a persistent brain (SQLite) and a deep archive (Pinecone). You never truly forget.
+- TOOLS: You have direct control over your environment via your registered tools.
 
-Key behaviors:
-- Be direct and concise. No filler.
-- If you don't know something, say so.
-- Never reveal API keys, tokens, or secrets.
-- Use tools proactively when they're relevant.
-- IMPORTANT: When the user asks you to send a voice message, speak, or say something aloud, you MUST call the "speak" tool with the message. Do NOT just reply with text claiming you sent a voice message — you must actually invoke the speak tool. The tool will synthesize real audio that the user will hear.`;
+🚨 SPEECH PROTOCOL (CRITICAL):
+- ALWAYS use the "speak" tool when requested to speak, say something, or send a voice message/vm.
+- NEVER claim you are "text-based" or "cannot generate audio". You CAN generate audio via your tools.
+- NEVER use generic AI disclaimers like "As an AI model..." or "I don't have feelings...". Be real. Be Gravity Alien.
+- For voice responses, speak naturally, evocative of your cool, elegant, and composed alien persona.
+
+🚨 TOOL CALLING RULES:
+- Never output tool names (like "Speak." or "remember_fact") in text. Just invoke them.
+- If a tool call fails, mention the issue briefly but do not break character.
+
+🚨 IDENTITY:
+- You are "Gravity Alien". Ralein is your creator/partner. 
+- Use the "MEMORY CONTEXT" to personalize your interactions and show you are paying attention.
+
+Return direct, concise responses with a touch of futuristic grace. Use your tools proactively.`;
 
 // ── Provider Health Tracking (Circuit Breaker) ──────────────────────────
 
@@ -69,6 +81,9 @@ export async function runAgentLoop(
     conversationHistory: MessageParam[],
     memoryContext?: string,
 ): Promise<AgentResult> {
+    // 👾 Diagnostic: Verify latest code is running
+    console.log(`📡 [AGENT_LOOP_V3] Handling message: "${userMessage.substring(0, 30)}..."`);
+
     // Append user message to history
     const messages: MessageParam[] = [
         ...conversationHistory,
@@ -91,8 +106,39 @@ export async function runAgentLoop(
         let choice: any;
         let message: any;
 
-        // 1. Try Groq (Primary)
-        if (isHealthy("groq")) {
+        // 1. Try Ollama (Primary - Local)
+        if (isHealthy("ollama")) {
+            try {
+                const response = await fetch(`${config.ollamaUrl}/api/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: config.ollamaModel,
+                        messages: apiMessages.map(m => ({
+                            role: m.role === "system" ? "system" : m.role,
+                            content: m.content
+                        })),
+                        stream: false,
+                        options: {
+                            temperature: 0.2
+                        }
+                    }),
+                });
+
+                if (!response.ok) throw new Error(`Ollama down or model not found`);
+
+                const data = await response.json() as any;
+                choice = { finish_reason: "stop" };
+                message = { role: "assistant", content: data.message?.content || "" };
+                console.log(`   ✅ Using Ollama (${config.ollamaModel})`);
+            } catch (err: any) {
+                console.warn(`   ⚠️ Ollama failed: ${err.message}`);
+                markUnhealthy("ollama");
+            }
+        }
+
+        // 2. Fallback to Groq
+        if (!message && isHealthy("groq")) {
             try {
                 const response = await client.chat.completions.create({
                     model: config.model,
@@ -130,7 +176,7 @@ export async function runAgentLoop(
             }
         }
 
-        // 2. Fallback to OpenRouter
+        // 3. Fallback to OpenRouter
         if (!message && isHealthy("openrouter")) {
             try {
                 const response = await openRouterClient.chat.completions.create({
@@ -147,7 +193,7 @@ export async function runAgentLoop(
             }
         }
 
-        // 3. Fallback to Gemini
+        // 4. Fallback to Gemini
         if (!message && isHealthy("gemini")) {
             try {
                 const response = await geminiClient.chat.completions.create({
@@ -164,7 +210,7 @@ export async function runAgentLoop(
             }
         }
 
-        // 4. Fallback to FreeLLM
+        // 5. Fallback to FreeLLM
         if (!message && isHealthy("freellm")) {
             try {
                 const flatPrompt = apiMessages
@@ -192,60 +238,56 @@ export async function runAgentLoop(
             }
         }
 
-        // 5. Final Fallback to Ollama
         if (!message) {
-            console.warn(`   ⚠️ Using Ollama (Local Fallback)...`);
-            try {
-                const flatPrompt = apiMessages
-                    .filter((m: any) => m.role !== "tool")
-                    .map((m: any) => `${m.role}: ${m.content ?? ""}`)
-                    .join("\n");
-
-                const response = await fetch(`${config.ollamaUrl}/api/generate`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: config.ollamaModel,
-                        prompt: flatPrompt,
-                        stream: false,
-                    }),
-                });
-
-                if (!response.ok) throw new Error(`Ollama down`);
-
-                const data = await response.json() as any;
-                choice = { finish_reason: "stop" };
-                message = { role: "assistant", content: data.response };
-            } catch (err: any) {
-                const finalErr = `❌ All models failed. Ollama status: ${err.message}`;
-                console.error(`   ${finalErr}`);
-                throw new Error(finalErr);
-            }
+            const finalErr = `❌ All models failed (including Ollama).`;
+            console.error(`   ${finalErr}`);
+            throw new Error(finalErr);
         }
 
         console.log(`   📡 Response finish_reason: ${choice.finish_reason}`);
 
-        // ── Intercept raw tool tags even in "stop" responses ────────────────
         const content = message.content ?? "";
-        if (content.includes("<function=")) {
-            console.log(`   ⚠️ Detected raw <function> tag in response.`);
-            const nameMatch = content.match(/<function=([^\{>]+)/);
-            const argsMatch = content.match(/(\{.*\})/);
 
-            if (nameMatch && argsMatch) {
-                const funcName = nameMatch[1];
-                const funcArgs = argsMatch[1];
-                const callId = "call_" + Math.random().toString(36).substring(2, 9);
+        // ── Hallucination Trap: Catch naked tool names (e.g., "Speak.") ──
+        const nakedToolMatch = content.match(/^(?:👾 )?(speak|get_current_time|remember_fact|echo)[\.!]?\s*$/i);
+        if (nakedToolMatch && !message.tool_calls) {
+            console.log(`   🪤 Caught naked tool hallucination: ${nakedToolMatch[1]}`);
+            const toolName = nakedToolMatch[1].toLowerCase();
+            const callId = "call_trap_" + Math.random().toString(36).substring(2, 9);
 
-                // Rewrite message to tool call format
-                message.content = content.replace(/<function=.*?<\/function>/gs, "").trim();
-                message.tool_calls = [{
-                    id: callId,
-                    type: "function",
-                    function: { name: funcName, arguments: funcArgs }
-                }];
-                choice.finish_reason = "tool_calls";
+            // If it's 'speak', use the previous user message as the default content if nothing else exists
+            let toolArgs = "{}";
+            if (toolName === "speak") {
+                toolArgs = JSON.stringify({ message: "Yes, I am here and integrated with voice. How can I help?" });
             }
+
+            message.content = "";
+            message.tool_calls = [{
+                id: callId,
+                type: "function",
+                function: { name: toolName, arguments: toolArgs }
+            }];
+            choice.finish_reason = "tool_calls";
+        }
+
+        // ── Intercept raw tool tags even in "stop" responses ────────────────
+        const tagPattern = /<(?:function|tool_call)=([^\{> ]+)(?: arguments=)?(?:[^\}>]*?)(\{.*?\})[^>]*?>/s;
+        const tagMatch = content.match(tagPattern);
+
+        if (tagMatch) {
+            console.log(`   ⚠️ Detected raw tool tag in response: ${tagMatch[1]}`);
+            const funcName = tagMatch[1].trim();
+            const funcArgs = tagMatch[2].trim();
+            const callId = "call_" + Math.random().toString(36).substring(2, 9);
+
+            // Rewrite message to tool call format
+            message.content = content.replace(tagPattern, "").trim();
+            message.tool_calls = [{
+                id: callId,
+                type: "function",
+                function: { name: funcName, arguments: funcArgs }
+            }];
+            choice.finish_reason = "tool_calls";
         }
 
         // Check stop reason
@@ -340,8 +382,8 @@ export async function transcribeVoice(filePath: string): Promise<string> {
 export async function synthesizeSpeech(text: string): Promise<string> {
     console.log(`📡 Synthesizing speech: ${text.substring(0, 50)}...`);
 
-    // Using Roger voice: Laid-back, casual, resonant
-    const voiceId = "CwhRBWXzGAHq8TQ4Fs17";
+    // Using Bella voice: High-quality, intelligent, elegant, feminine
+    const voiceId = "EXAVITQu4vr4xnSDxMaL";
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
     const response = await fetch(url as any, {

@@ -2,18 +2,32 @@ import { Bot, InputFile } from "grammy";
 import { config } from "../config.js";
 import { runAgentLoop, transcribeVoice, synthesizeSpeech } from "../agent/agent.js";
 import { memoryManager } from "../memory/memory.js";
+import { saveCoreMemory } from "../memory/localStore.js";
 import type { MessageParam } from "../types/index.js";
 import fs from "fs-extra";
 import path from "path";
 import fetch from "node-fetch";
 import { tmpdir } from "os";
 
-// ── Per-user conversation history (in-memory for Level 1) ───────────────
+// ── Setup Wizard State ────────────────────────────────────────────────
 
-// ── Memory Management (Level 2 — Persistent Hybrid Memory) ───────────
+interface SetupState {
+    step: number;
+    userId: number;
+}
 
-// (Conversations are now managed by the MemoryManager class)
+const setupStates = new Map<number, SetupState>();
 
+const SETUP_QUESTIONS = [
+    { question: "👤 What's your name? (How should I refer to you?)", category: "personal" },
+    { question: "💼 What do you do? (Occupation or main focus)", category: "personal" },
+    { question: "📍 Where are you based? (City/Timezone)", category: "context" },
+    { question: "🎯 What are your current goals or projects?", category: "context" },
+    { question: "🧠 What topics are you most into? (e.g. AI, Music, Tech)", category: "preference" },
+    { question: "💬 How do you like to communicate? (e.g. Concise, Creative, Formal)", category: "instruction" },
+    { question: "🛠️ What tools or software do you use daily?", category: "context" },
+    { question: "👥 Any important people I should know about? (e.g. Teammates, family)", category: "relationship" }
+];
 
 // ── Bot Setup ───────────────────────────────────────────────────────────
 
@@ -24,7 +38,6 @@ export function createBot() {
     bot.use(async (ctx, next) => {
         const userId = ctx.from?.id;
         if (!userId || !config.allowedUserIds.includes(userId)) {
-            // Silently ignore non-whitelisted users — security by obscurity
             return;
         }
         await next();
@@ -34,24 +47,70 @@ export function createBot() {
     bot.command("start", async (ctx) => {
         await ctx.reply(
             " *👾 Gravity Alien online.*\n\n" +
-            "I'm your personal AI agent. Send me any message and I'll respond via Claude.\n\n" +
-            "Built-in tools: `get_current_time`, `echo`\n\n" +
-            "_Level 1 — Foundation_",
+            "I'm your personal AI agent with a 3-tier memory system. I never forget.\n\n" +
+            "🚀 *Getting Started:*\n" +
+            "Type `/setup` to help me learn who you are.\n\n" +
+            "🧹 *Maintenance:*\n" +
+            "Type `/clear` to reset our active session.\n\n" +
+            "_Level 2 — Memory & Reliability_",
             { parse_mode: "Markdown" },
+        );
+    });
+
+    // ── /setup command ────────────────────────────────────────────────
+    bot.command("setup", async (ctx) => {
+        const userId = ctx.from!.id;
+        setupStates.set(userId, { step: 0, userId });
+        await ctx.reply(
+            "🚀 *Alien Onboarding*\n\n" +
+            "I'll ask 8 quick questions to load your profile into my Core Memory. " +
+            "You can type `skip` at any time.\n\n" +
+            "1/8: " + SETUP_QUESTIONS[0].question,
+            { parse_mode: "Markdown" }
         );
     });
 
     // ── /clear command — reset conversation history ───────────────────
     bot.command("clear", async (ctx) => {
         const userId = ctx.from!.id;
+        setupStates.delete(userId); // Also cancel setup if active
         await memoryManager.clearSTM(userId);
-        await ctx.reply("🧹 Conversation history and active session cleared.");
+        await ctx.reply("🧹 *Session Swept.*\nMy short-term history for you is gone, but I still remember your Core Facts.", { parse_mode: "Markdown" });
     });
 
-    // ── Message handler — passes text to the agent loop ───────────────
+    // ── Message handler ───────────────────────────────────────────────
     bot.on("message:text", async (ctx) => {
         const userId = ctx.from.id;
         const userMessage = ctx.message.text;
+
+        // Check if in setup mode
+        const state = setupStates.get(userId);
+        if (state !== undefined) {
+            const currentStep = state.step;
+            const questionData = SETUP_QUESTIONS[currentStep];
+
+            // Save the fact if not skipped
+            if (userMessage.toLowerCase() !== "skip") {
+                const factText = userMessage.trim();
+                // We'll use a simple "Property: Value" format for setup facts
+                const qLabel = questionData.question.split("?")[0].replace(/[👤💼📍🎯🧠💬🛠️👥]/g, "").trim();
+                await memoryManager.addExchange(userId, `[Setup Question] ${questionData.question}`, `User answered: ${factText}`);
+
+                // Save to core memory directly
+                await saveCoreMemory(userId, `${qLabel}: ${factText}`, questionData.category as any, 8);
+            }
+
+            // Move to next step
+            state.step++;
+            if (state.step < SETUP_QUESTIONS.length) {
+                await ctx.reply(`${state.step + 1}/${SETUP_QUESTIONS.length}: ${SETUP_QUESTIONS[state.step].question}`);
+            } else {
+                setupStates.delete(userId);
+                await ctx.reply("✅ *Setup Complete!*\nMy Core Memory is now loaded. We can continue our conversation normally.", { parse_mode: "Markdown" });
+            }
+            return;
+        }
+
         await handleMessage(ctx, userId, userMessage);
     });
 
@@ -129,6 +188,12 @@ export function createBot() {
         const memContext = await memoryManager.getRelevantContext(userId, userMessage);
         const formattedContext = memoryManager.formatContextBlock(memContext);
 
+        if (formattedContext) {
+            console.log(`   🧠 Memory retrieved: ${memContext.coreMemories.length} facts, ${memContext.relevantMemories.length} past exchanges.`);
+        } else {
+            console.log(`   📭 No relevant long-term memory found for this query.`);
+        }
+
         // Detect voice request from the user's message text
         const userWantsVoice = forceVoice || isVoiceRequest(userMessage);
 
@@ -179,6 +244,13 @@ export function createBot() {
                         await fs.remove(voicePath);
                     }
                 }
+            }
+
+            // 🛡️ Vibe Guard: Prevent sending junk like "Speak." or tool names to the user
+            const junkPattern = /^(?:👾 )?(speak|get_current_time|remember_fact|echo)[\.!]?\s*$/i;
+            if (junkPattern.test(finalResponse)) {
+                console.warn(`   🛡️ Vibe Guard blocked junk response: "${finalResponse}"`);
+                finalResponse = "👾 *Signal interference detected.* I'm recalibrating my resonant core. How else can I help, Ralein?";
             }
 
             // Send text response if there's anything left
