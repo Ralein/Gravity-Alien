@@ -1,7 +1,11 @@
 import { Bot } from "grammy";
 import { config } from "../config.js";
-import { runAgentLoop } from "../agent/agent.js";
+import { runAgentLoop, transcribeVoice } from "../agent/agent.js";
 import type { MessageParam } from "../types/index.js";
+import fs from "fs-extra";
+import path from "path";
+import fetch from "node-fetch";
+import { tmpdir } from "os";
 
 // ── Per-user conversation history (in-memory for Level 1) ───────────────
 
@@ -30,7 +34,7 @@ export function createBot() {
     });
 
     // ── /start command ────────────────────────────────────────────────
-    bot.command("start", async (ctx) => {   
+    bot.command("start", async (ctx) => {
         await ctx.reply(
             " *👾 Gravity Alien online.*\n\n" +
             "I'm your personal AI agent. Send me any message and I'll respond via Claude.\n\n" +
@@ -51,11 +55,62 @@ export function createBot() {
     bot.on("message:text", async (ctx) => {
         const userId = ctx.from.id;
         const userMessage = ctx.message.text;
-        const history = getHistory(userId);
+        await handleMessage(ctx, userId, userMessage);
+    });
 
-        console.log(`\n📩 Message from ${userId}: ${userMessage.substring(0, 80)}...`);
+    // ── Voice message handler — transcribes and then passes to agent loop ──
+    bot.on("message:voice", async (ctx) => {
+        const userId = ctx.from.id;
+        const voice = ctx.message.voice;
+
+        console.log(`\n🎙️ Voice message from ${userId} (${voice.duration}s)`);
 
         // Show typing indicator
+        await ctx.replyWithChatAction("typing");
+
+        let tempPath = "";
+        try {
+            // Get file info from Telegram
+            const file = await ctx.getFile();
+            const fileUrl = `https://api.telegram.org/file/bot${config.telegramToken}/${file.file_path}`;
+
+            // Download to temp file
+            tempPath = path.join(tmpdir(), `voice_${file.file_unique_id}.ogg`);
+            const response = await fetch(fileUrl);
+            if (!response.ok) throw new Error(`Failed to download voice file: ${response.statusText}`);
+
+            const buffer = await response.buffer();
+            await fs.writeFile(tempPath, buffer);
+
+            // Transcribe
+            const transcription = await transcribeVoice(tempPath);
+            console.log(`   📝 Transcription: ${transcription}`);
+
+            // Acknowledge transcription
+            await ctx.reply(`_You said:_ "${transcription}"`, { parse_mode: "Markdown" });
+
+            // Process as text
+            await handleMessage(ctx, userId, transcription);
+
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`   ❌ Voice processing error: ${message}`);
+            await ctx.reply("⚠️ Sorry, I had trouble processing your voice message.");
+        } finally {
+            // Clean up
+            if (tempPath && await fs.pathExists(tempPath)) {
+                await fs.remove(tempPath);
+            }
+        }
+    });
+
+    /**
+     * Common logic for handling a text prompt through the agent loop.
+     */
+    async function handleMessage(ctx: any, userId: number, userMessage: string) {
+        const history = getHistory(userId);
+
+        // Show typing indicator again if it might have expired
         await ctx.replyWithChatAction("typing");
 
         try {
@@ -65,17 +120,16 @@ export function createBot() {
             history.push({ role: "user", content: userMessage });
             history.push({ role: "assistant", content: result.response });
 
-            // Keep history manageable (last 20 exchanges = 40 messages)
+            // Keep history manageable
             while (history.length > 40) {
                 history.shift();
             }
 
-            // Send response (split if too long for Telegram's 4096 char limit)
+            // Send response
             const maxLen = 4000;
             if (result.response.length <= maxLen) {
                 await ctx.reply(result.response);
             } else {
-                // Split into chunks
                 for (let i = 0; i < result.response.length; i += maxLen) {
                     await ctx.reply(result.response.substring(i, i + maxLen));
                 }
@@ -87,9 +141,9 @@ export function createBot() {
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error(`   ❌ Agent error: ${message}`);
-            await ctx.reply("⚠️ Something went wrong processing your message. Please try again.");
+            await ctx.reply("⚠️ Something went wrong processing your message.");
         }
-    });
+    }
 
     return bot;
 }

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import fs from "fs-extra";
 import { config } from "../config.js";
 import type { AgentResult, MessageParam } from "../types/index.js";
 import { executeTool, getToolSpecs } from "./tools.js";
@@ -117,6 +118,29 @@ export async function runAgentLoop(
 
         console.log(`   📡 Response finish_reason: ${choice.finish_reason}`);
 
+        // ── Intercept raw tool tags even in "stop" responses ────────────────
+        const content = message.content ?? "";
+        if (content.includes("<function=")) {
+            console.log(`   ⚠️ Detected raw <function> tag in response.`);
+            const nameMatch = content.match(/<function=([^\{>]+)/);
+            const argsMatch = content.match(/(\{.*\})/);
+
+            if (nameMatch && argsMatch) {
+                const funcName = nameMatch[1];
+                const funcArgs = argsMatch[1];
+                const callId = "call_" + Math.random().toString(36).substring(2, 9);
+
+                // Rewrite message to tool call format
+                message.content = content.replace(/<function=.*?<\/function>/gs, "").trim();
+                message.tool_calls = [{
+                    id: callId,
+                    type: "function",
+                    function: { name: funcName, arguments: funcArgs }
+                }];
+                choice.finish_reason = "tool_calls";
+            }
+        }
+
         // Check stop reason
         if (choice.finish_reason === "stop" || !choice.finish_reason) {
             // Groq finished with a text response
@@ -161,4 +185,18 @@ export async function runAgentLoop(
         toolCalls: totalToolCalls,
         iterations,
     };
+}
+/**
+ * Transcribes a voice file using Groq's Whisper API.
+ * @param filePath Path to the downloaded voice file.
+ * @returns The transcribed text.
+ */
+export async function transcribeVoice(filePath: string): Promise<string> {
+    console.log(`📡 Transcribing voice file: ${filePath}`);
+    const transcription = await client.audio.transcriptions.create({
+        file: fs.createReadStream(filePath),
+        model: "whisper-large-v3-turbo",
+        response_format: "verbose_json",
+    });
+    return transcription.text;
 }
