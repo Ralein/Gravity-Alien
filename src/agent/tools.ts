@@ -57,7 +57,7 @@ const speak: ToolDefinition = {
         function: {
             name: "speak",
             description:
-                "Use this tool when you want to respond with a voice message instead of or in addition to text. The message will be synthesized into a high-quality voice message.",
+                "IMPORTANT: You MUST call this tool to send a voice message. Do NOT just say you sent one in text — actually invoke this tool. When the user asks for a voice message, voice note, or asks you to speak/say something aloud, call this tool with the message text. The message will be synthesized into high-quality voice audio that the user will hear.",
             parameters: {
                 type: "object",
                 properties: {

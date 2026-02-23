@@ -28,7 +28,8 @@ Key behaviors:
 - Be direct and concise. No filler.
 - If you don't know something, say so.
 - Never reveal API keys, tokens, or secrets.
-- Use tools proactively when they're relevant.`;
+- Use tools proactively when they're relevant.
+- IMPORTANT: When the user asks you to send a voice message, speak, or say something aloud, you MUST call the "speak" tool with the message. Do NOT just reply with text claiming you sent a voice message — you must actually invoke the speak tool. The tool will synthesize real audio that the user will hear.`;
 
 // ── Agentic Loop ────────────────────────────────────────────────────────
 
@@ -227,8 +228,8 @@ export async function transcribeVoice(filePath: string): Promise<string> {
 export async function synthesizeSpeech(text: string): Promise<string> {
     console.log(`📡 Synthesizing speech: ${text.substring(0, 50)}...`);
 
-    // Using default voice (Rachel: 21m0obfVpEBU28O3mLoJ)
-    const voiceId = "21m0obfVpEBU28O3mLoJ";
+    // Using Roger voice: Laid-back, casual, resonant
+    const voiceId = "CwhRBWXzGAHq8TQ4Fs17";
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
     const response = await fetch(url as any, {
@@ -239,7 +240,7 @@ export async function synthesizeSpeech(text: string): Promise<string> {
         },
         body: JSON.stringify({
             text,
-            model_id: "eleven_monolingual_v1",
+            model_id: "eleven_flash_v2_5",
             voice_settings: {
                 stability: 0.5,
                 similarity_boost: 0.5,
@@ -249,10 +250,13 @@ export async function synthesizeSpeech(text: string): Promise<string> {
 
     if (!response.ok) {
         const errText = await response.text();
+        console.error(`   ❌ ElevenLabs API error ${response.status}: ${errText}`);
         throw new Error(`ElevenLabs API error: ${response.status} ${errText}`);
     }
 
-    const audioBuffer = await (response as any).buffer();
+    const arrayBuf = await response.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuf);
+    console.log(`   ✅ ElevenLabs returned ${audioBuffer.length} bytes of audio`);
     const tempPath = path.join(tmpdir(), `speech_${Date.now()}.mp3`);
     await fs.writeFile(tempPath, audioBuffer);
 

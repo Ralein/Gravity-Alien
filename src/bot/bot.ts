@@ -105,13 +105,35 @@ export function createBot() {
     });
 
     /**
-     * Common logic for handling a text prompt through the agent loop.
+     * Detect if the user is requesting a voice message via keywords.
      */
+    function isVoiceRequest(message: string): boolean {
+        const lower = message.toLowerCase();
+        const patterns = [
+            /voice\s*(msg|message|note)/,
+            /send\s*(me\s*)?(a\s*)?voice/,
+            /speak\s+to\s+me/,
+            /say\s+(it\s+)?aloud/,
+            /talk\s+to\s+me/,
+            /voice\s+reply/,
+            /audio\s*(msg|message)/,
+            /can\s+you\s+(speak|say|voice)/,
+        ];
+        return patterns.some(p => p.test(lower));
+    }
+
     /**
      * Common logic for handling a text prompt through the agent loop.
      */
     async function handleMessage(ctx: any, userId: number, userMessage: string, forceVoice: boolean = false) {
         const history = getHistory(userId);
+
+        // Detect voice request from the user's message text
+        const userWantsVoice = forceVoice || isVoiceRequest(userMessage);
+
+        if (userWantsVoice) {
+            console.log(`   🎤 Voice request detected from user ${userId}`);
+        }
 
         // Show typing indicator
         await ctx.replyWithChatAction("typing");
@@ -128,12 +150,15 @@ export function createBot() {
                 history.shift();
             }
 
-            // Check if the agent wants to speak
+            // Determine voice text: from tool call, user request detection, or forced
             let finalResponse = result.response;
             let voiceText = result.voiceText || "";
 
-            if (forceVoice && !voiceText) {
+            // If the user asked for voice but the LLM didn't call the speak tool,
+            // force-synthesize the LLM's text response as voice
+            if (userWantsVoice && !voiceText) {
                 voiceText = finalResponse;
+                console.log(`   🎤 Forcing voice synthesis for response (${voiceText.length} chars)`);
             }
 
             // Send voice response if needed
@@ -141,12 +166,19 @@ export function createBot() {
                 await ctx.replyWithChatAction("upload_voice");
                 let voicePath = "";
                 try {
+                    console.log(`   📡 Calling ElevenLabs TTS...`);
                     voicePath = await synthesizeSpeech(voiceText);
+                    console.log(`   📤 Sending voice file to Telegram: ${voicePath}`);
                     await ctx.replyWithVoice(new InputFile(voicePath));
+                    console.log(`   ✅ Voice message sent successfully!`);
+                    // If we sent voice, don't also send the same content as text
+                    if (userWantsVoice) {
+                        finalResponse = "";
+                    }
                 } catch (speechErr) {
                     console.error("   ❌ TTS Error:", speechErr);
                     // Fallback to text if TTS fails
-                    if (!finalResponse) finalResponse = voiceText;
+                    await ctx.reply("⚠️ Voice synthesis failed — here's the text instead:");
                 } finally {
                     if (voicePath && await fs.pathExists(voicePath)) {
                         await fs.remove(voicePath);
