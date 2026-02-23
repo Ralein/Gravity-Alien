@@ -10,13 +10,14 @@ export class GSDManager {
     private gsdBaseDir: string;
 
     constructor(projectBaseDir: string) {
-        this.planningDir = path.join(projectBaseDir, ".planning");
         this.gsdBaseDir = path.join(projectBaseDir, "gsd");
+        this.planningDir = path.join(this.gsdBaseDir, "active");
     }
 
     async ensureInitialized() {
         await fs.ensureDir(this.planningDir);
-        await fs.ensureDir(path.join(this.planningDir, "research"));
+        await fs.ensureDir(path.join(this.planningDir, "phases"));
+        await fs.ensureDir(path.join(this.gsdBaseDir, ".gemini/get-shit-done/templates"));
     }
 
     async getTemplate(templatePath: string): Promise<string | null> {
@@ -50,31 +51,49 @@ export class GSDManager {
     async initializeProject(goals: string): Promise<string> {
         await this.ensureInitialized();
 
-        // Use professional templates if available
+        // 1. Discovery/Project Vision
         const projectTemplate = await this.getTemplate("project.md") || "# Project Vision\n\n{{goals}}\n";
-        const projectMd = projectTemplate.replace("{{goals}}", goals);
+        const projectMd = projectTemplate.replace("{{goals}}", goals).replace("[Project Name]", "RA 1").replace("[date]", new Date().toLocaleDateString());
         await this.saveProjectFile("PROJECT.md", projectMd);
 
+        // 2. Requirements
         const requirementsTemplate = await this.getTemplate("requirements.md") || "# Requirements\n\n- [ ] Initial set from vision\n";
         await this.saveProjectFile("REQUIREMENTS.md", requirementsTemplate);
 
+        // 3. Roadmap (Multi-phase)
         const roadmapTemplate = await this.getTemplate("roadmap.md") || "# Roadmap\n\n## Phase 1: Foundation\n- [ ] Setup core structures\n";
         await this.saveProjectFile("ROADMAP.md", roadmapTemplate);
 
-        const stateMd = `# State\n\n- Status: Initialized\n- Milestone: 1\n- Phase: 1\n- Time: ${new Date().toISOString()}\n`;
+        // 4. State (The project's living memory)
+        const stateTemplate = await this.getTemplate("state.md") || "# Project State\n\n- Status: Initialized\n";
+        const stateMd = stateTemplate
+            .replace("[date]", new Date().toLocaleDateString())
+            .replace("[One-liner from PROJECT.md Core Value section]", "To be determined during discovery")
+            .replace("[Current phase name]", "Phase 1: Foundation")
+            .replace("[X] of [Y]", "1 of 5")
+            .replace("[A] of [B]", "1 of 3")
+            .replace("[Ready to plan / Planning / Ready to execute / In progress / Phase complete]", "Ready to Plan")
+            .replace("[YYYY-MM-DD]", new Date().toLocaleDateString())
+            .replace("[What happened]", "Project initialized via GSD Wizard");
         await this.saveProjectFile("STATE.md", stateMd);
 
-        return "Project initialized in .planning/ using professional templates.";
+        return "PROJECT_INITIALIZED: Project files created in gsd/active/. " +
+            "Gravity Alien (Strategist), please use Context7 to research best practices " +
+            "for the requested stack and refine the PROJECT.md. " +
+            "Anti-Gravity (Worker), stand by for XML task instructions.";
     }
 
     async planPhase(phaseNum: number, context: string): Promise<string> {
-        const phaseDir = path.join(this.planningDir, `phase-${phaseNum}`);
+        const phaseDir = path.join(this.planningDir, "phases", `phase-${phaseNum}`);
         await fs.ensureDir(phaseDir);
 
-        const contextFile = `${phaseNum}-CONTEXT.md`;
-        await this.saveProjectFile(contextFile, `# Phase ${phaseNum} Context\n\n${context}`);
+        const planFile = `phases/phase-${phaseNum}/PLAN.md`;
+        const planTemplate = `# Phase ${phaseNum} Plan\n\n## Goal\nSet by Strategist based on Context7 research.\n\n## Tasks\n<!-- Anti-Gravity: Add <task> blocks here -->\n\n<task type="auto">\n  <name>Initialize Phase</name>\n  <action>Setup directory structure for phase ${phaseNum}</action>\n  <verify>ls -R gsd/active/phases/phase-${phaseNum}</verify>\n  <done>Phase dir exists</done>\n</task>\n`;
+        await this.saveProjectFile(planFile, planTemplate);
 
-        return `Phase ${phaseNum} planned. Context saved. Ready for research or execution wave identification.`;
+        return `PHASE_PLANNED: Phase ${phaseNum} structure ready. " +
+               "Strategist, refine the plan in gsd/active/${planFile}. " +
+               "Worker, begin execution of initialized tasks.`;
     }
 
     async mapCodebase(): Promise<string> {
@@ -86,7 +105,7 @@ export class GSDManager {
         await this.saveProjectFile("codebase/ARCHITECTURE.md", "# Architecture Map\n\n(Generated from existing codebase analysis)\n");
         await this.saveProjectFile("codebase/STACK.md", "# Current Stack\n\n(Generated from package.json and file analysis)\n");
 
-        return "Codebase mapped to .planning/codebase/";
+        return "Codebase mapped to gsd/active/codebase/";
     }
 }
 
