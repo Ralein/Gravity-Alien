@@ -46,6 +46,7 @@ Key behaviors:
 export async function runAgentLoop(
     userMessage: string,
     conversationHistory: MessageParam[],
+    memoryContext?: string,
 ): Promise<AgentResult> {
     // Append user message to history
     const messages: MessageParam[] = [
@@ -59,7 +60,7 @@ export async function runAgentLoop(
     let capturedVoiceText = "";
 
     const apiMessages: MessageParam[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: SYSTEM_PROMPT + (memoryContext ? `\n${memoryContext}` : "") },
         ...messages
     ];
 
@@ -158,8 +159,41 @@ export async function runAgentLoop(
                             choice = { finish_reason: "stop" };
                             message = { role: "assistant", content: freeLlmData.response };
                         } catch (freeLlmErr: any) {
-                            console.error("   ❌ All 4 LLM providers failed:", freeLlmErr.message);
-                            throw freeLlmErr;
+                            console.warn(`   ⚠️ FreeLLM also failed (${freeLlmErr.message}). Falling back to Ollama...`);
+                            try {
+                                const flatPrompt = apiMessages
+                                    .filter((m: any) => m.role !== "tool")
+                                    .map((m: any) => `${m.role}: ${m.content ?? ""}`)
+                                    .join("\n");
+
+                                const ollamaResponse = await fetch(`${config.ollamaUrl}/api/generate`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        model: config.ollamaModel,
+                                        prompt: flatPrompt,
+                                        stream: false,
+                                    }),
+                                });
+
+                                if (!ollamaResponse.ok) {
+                                    throw new Error(`Ollama error: ${ollamaResponse.statusText}`);
+                                }
+
+                                const ollamaData = await ollamaResponse.json() as any;
+                                console.log(`   ✅ Ollama responded via ${config.ollamaModel}`);
+                                choice = { finish_reason: "stop" };
+                                message = { role: "assistant", content: ollamaData.response };
+                            } catch (ollamaErr: any) {
+                                let finalErr = "❌ All 5 LLM providers failed.";
+                                if (ollamaErr.code === "ECONNREFUSED" || ollamaErr.message.includes("fetch failed")) {
+                                    finalErr += " Ollama is inactive (service not running).";
+                                } else {
+                                    finalErr += ` Ollama error: ${ollamaErr.message}`;
+                                }
+                                console.error(`   ${finalErr}`);
+                                throw new Error(finalErr);
+                            }
                         }
                     }
                 }

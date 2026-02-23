@@ -1,6 +1,7 @@
 import { Bot, InputFile } from "grammy";
 import { config } from "../config.js";
 import { runAgentLoop, transcribeVoice, synthesizeSpeech } from "../agent/agent.js";
+import { memoryManager } from "../memory/memory.js";
 import type { MessageParam } from "../types/index.js";
 import fs from "fs-extra";
 import path from "path";
@@ -9,14 +10,10 @@ import { tmpdir } from "os";
 
 // ── Per-user conversation history (in-memory for Level 1) ───────────────
 
-const conversations = new Map<number, MessageParam[]>();
+// ── Memory Management (Level 2 — Persistent Hybrid Memory) ───────────
 
-function getHistory(userId: number): MessageParam[] {
-    if (!conversations.has(userId)) {
-        conversations.set(userId, []);
-    }
-    return conversations.get(userId)!;
-}
+// (Conversations are now managed by the MemoryManager class)
+
 
 // ── Bot Setup ───────────────────────────────────────────────────────────
 
@@ -47,8 +44,8 @@ export function createBot() {
     // ── /clear command — reset conversation history ───────────────────
     bot.command("clear", async (ctx) => {
         const userId = ctx.from!.id;
-        conversations.set(userId, []);
-        await ctx.reply("🧹 Conversation history cleared.");
+        await memoryManager.clearSTM(userId);
+        await ctx.reply("🧹 Conversation history and active session cleared.");
     });
 
     // ── Message handler — passes text to the agent loop ───────────────
@@ -126,7 +123,11 @@ export function createBot() {
      * Common logic for handling a text prompt through the agent loop.
      */
     async function handleMessage(ctx: any, userId: number, userMessage: string, forceVoice: boolean = false) {
-        const history = getHistory(userId);
+        const history = memoryManager.getSTM(userId);
+
+        // Fetch semantic/persistent memory context
+        const memContext = await memoryManager.getRelevantContext(userId, userMessage);
+        const formattedContext = memoryManager.formatContextBlock(memContext);
 
         // Detect voice request from the user's message text
         const userWantsVoice = forceVoice || isVoiceRequest(userMessage);
@@ -139,16 +140,10 @@ export function createBot() {
         await ctx.replyWithChatAction("typing");
 
         try {
-            const result = await runAgentLoop(userMessage, history);
+            const result = await runAgentLoop(userMessage, history, formattedContext);
 
             // Update conversation history with user message and assistant response
-            history.push({ role: "user", content: userMessage });
-            history.push({ role: "assistant", content: result.response });
-
-            // Keep history manageable
-            while (history.length > 40) {
-                history.shift();
-            }
+            await memoryManager.addExchange(userId, userMessage, result.response);
 
             // Determine voice text: from tool call, user request detection, or forced
             let finalResponse = result.response;

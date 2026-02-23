@@ -16,6 +16,10 @@ export interface AppConfig {
     elevenLabsApiKey: string;
     geminiApiKey: string;
     freeLlmApiKey: string;
+    pineconeApiKey: string;
+    pineconeIndex: string;
+    ollamaModel: string;
+    ollamaUrl: string;
 }
 
 // ── Agent ───────────────────────────────────────────────────────────────
@@ -32,6 +36,7 @@ export interface AgentResult {
     toolCalls: number;
     iterations: number;
     voiceText?: string;
+    memoryContext?: string; // Formatted memory block injected into prompt
 }
 
 // Re-export useful OpenAI types for convenience

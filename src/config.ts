@@ -39,6 +39,10 @@ export const config: AppConfig = {
     elevenLabsApiKey: requireEnv("ELEVENLABS_API_KEY"),
     geminiApiKey: requireEnv("GEMINI_API_KEY"),
     freeLlmApiKey: requireEnv("FREELLM_API_KEY"),
+    pineconeApiKey: process.env["PINECONE_API_KEY"] ?? "PLACEHOLDER",
+    pineconeIndex: process.env["PINECONE_INDEX"] ?? "alien-memory",
+    ollamaModel: process.env["OLLAMA_MODEL"] ?? "gemma3:1b",
+    ollamaUrl: process.env["OLLAMA_URL"] ?? "http://localhost:11434",
 };
 
 // Startup confirmation (no secrets leaked)
