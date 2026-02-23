@@ -37,6 +37,8 @@ export const config: AppConfig = {
     fallbackModel: process.env["ANTHROPIC_MODEL"] ?? "anthropic/claude-3.5-sonnet",
     maxIterations: Number(process.env["MAX_AGENT_ITERATIONS"] ?? "10"),
     elevenLabsApiKey: requireEnv("ELEVENLABS_API_KEY"),
+    geminiApiKey: requireEnv("GEMINI_API_KEY"),
+    freeLlmApiKey: requireEnv("FREELLM_API_KEY"),
 };
 
 // Startup confirmation (no secrets leaked)

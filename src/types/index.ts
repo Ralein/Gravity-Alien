@@ -14,6 +14,8 @@ export interface AppConfig {
     fallbackModel: string;
     maxIterations: number;
     elevenLabsApiKey: string;
+    geminiApiKey: string;
+    freeLlmApiKey: string;
 }
 
 // ── Agent ───────────────────────────────────────────────────────────────

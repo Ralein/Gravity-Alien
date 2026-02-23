@@ -19,6 +19,11 @@ const openRouterClient = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
 });
 
+const geminiClient = new OpenAI({
+    apiKey: config.geminiApiKey,
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+});
+
 const SYSTEM_PROMPT = `You are 👾 Gravity Alien, a personal AI assistant. You are helpful, concise, and security-conscious.
 
 You have access to tools. Use them when they would help answer the user's question.
@@ -115,8 +120,48 @@ export async function runAgentLoop(
                     choice = fallbackResponse.choices[0];
                     message = choice.message;
                 } catch (fallbackErr: any) {
-                    console.error("   ❌ Fallback API call also failed:", fallbackErr.message);
-                    throw fallbackErr;
+                    console.warn(`   ⚠️ OpenRouter also failed (${fallbackErr.message}). Falling back to Gemini...`);
+                    try {
+                        const geminiResponse = await geminiClient.chat.completions.create({
+                            model: "gemini-2.0-flash",
+                            messages: apiMessages,
+                            tools: tools.length > 0 ? tools : undefined,
+                            temperature: 0.2,
+                        });
+                        choice = geminiResponse.choices[0];
+                        message = choice.message;
+                    } catch (geminiErr: any) {
+                        console.warn(`   ⚠️ Gemini also failed (${geminiErr.message}). Falling back to FreeLLM...`);
+                        try {
+                            // FreeLLM uses a custom API format — flatten messages into a single prompt
+                            const flatPrompt = apiMessages
+                                .filter((m: any) => m.role !== "tool")
+                                .map((m: any) => `${m.role}: ${m.content ?? ""}`)
+                                .join("\n");
+
+                            const freeLlmResponse = await fetch("https://apifreellm.com/api/v1/chat" as any, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "Authorization": `Bearer ${config.freeLlmApiKey}`,
+                                },
+                                body: JSON.stringify({ message: flatPrompt, model: "gpt-4o-mini" }),
+                            });
+
+                            const freeLlmData = await freeLlmResponse.json() as any;
+                            if (!freeLlmData.success) {
+                                throw new Error(`FreeLLM error: ${freeLlmData.error}`);
+                            }
+
+                            console.log(`   ✅ FreeLLM responded via ${freeLlmData.provider}/${freeLlmData.model}`);
+                            // Convert to OpenAI-compatible format
+                            choice = { finish_reason: "stop" };
+                            message = { role: "assistant", content: freeLlmData.response };
+                        } catch (freeLlmErr: any) {
+                            console.error("   ❌ All 4 LLM providers failed:", freeLlmErr.message);
+                            throw freeLlmErr;
+                        }
+                    }
                 }
             }
         }
